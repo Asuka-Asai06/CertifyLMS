@@ -43,7 +43,7 @@
                 <h1 class="text-2xl font-bold text-ink-900 mt-3 leading-snug">{{ $thread->title }}</h1>
                 <div class="flex items-center gap-3 mt-3 text-sm">
                     <x-avatar :src="$thread->user?->avatar_url" :name="$thread->user?->name ?? '?'" size="sm" />
-                    <span class="font-medium text-ink-700">{{ $thread->user?->name ?? '不明' }}</span>
+                    <span class="font-medium text-ink-700">{{ $thread->user?->trashed() ? '不明' : ($thread->user?->name ?? '不明') }}</span>
                     <span class="inline-block w-1 h-1 rounded-full bg-ink-300"></span>
                     <span class="text-ink-500 font-mono text-xs">{{ $thread->created_at?->format('Y/m/d H:i') }}</span>
                     @if ($isResolved && $thread->resolved_at)

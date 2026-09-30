@@ -44,7 +44,7 @@
             @endif
             <div class="flex flex-wrap items-center gap-2.5 mt-1.5 text-[11px] text-ink-500">
                 <x-avatar :src="$thread->user?->avatar_url" :name="$thread->user?->name ?? '?'" size="sm" />
-                <span class="font-medium text-ink-700">{{ $thread->user?->name ?? '不明' }}</span>
+                <span class="font-medium text-ink-700">{{ $thread->user?->trashed() ? '不明' : ($thread->user?->name ?? '不明') }}</span>
                 <span class="inline-block w-1 h-1 rounded-full bg-ink-300"></span>
                 <x-badge variant="gray" size="sm">{{ $thread->certification?->name ?? '資格未設定' }}</x-badge>
                 @if ($isUnpublished)
