@@ -21,7 +21,9 @@ class StoreThreadRequestTest extends TestCase
 
     public function test_passes_with_valid_payload(): void
     {
-        $certification = Certification::factory()->create();
+        $certification = Certification::factory()
+            ->published()
+            ->create();
 
         $validator = Validator::make([
             'certification_id' => $certification->id,
