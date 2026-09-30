@@ -48,6 +48,7 @@ class QaReplyController extends Controller
 
         return view('qa-thread.reply-edit', [
             'reply' => $reply,
+            'thread' => $reply->thread,
         ]);
     }
 

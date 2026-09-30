@@ -11,18 +11,15 @@ use App\Models\QaReply;
 use App\Models\QaThread;
 use App\Models\User;
 
+/**
+ * 質問掲示板の返信に対する認可ポリシー。
+ *
+ * - admin: 全返信を閲覧・削除できる。
+ * - coach: 担当中かつ公開中の資格に紐づく返信をCRUD操作できる。
+ * - student: 公開中の資格に紐づく返信をCRUD操作できる。
+ */
 class QaReplyPolicy
 {
-    /**
-     * 質問掲示板の返信に対する認可ポリシー。
-     *
-     * - admin: 全返信を閲覧・削除できる。
-     * - coach: 担当中かつ公開中の資格に紐づく返信をCRUD操作できる。
-     * - student: 公開中の資格に紐づく返信をCRUD操作できる。
-     *
-     * @param User $user 認証済みユーザー
-     * @param QaReply $reply 閲覧対象の返信
-     */
     public function view(User $user, QaReply $reply): bool
     {
         if (! $this->isActiveUser($user)) {

@@ -18,7 +18,7 @@
         <x-avatar :src="$reply->user?->avatar_url" :name="$reply->user?->name ?? '?'" size="md" />
         <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-semibold text-ink-900 text-sm">{{ $reply->user?->name ?? '不明' }}</span>
+                <span class="font-semibold text-ink-900 text-sm">{{ $reply->user?->trashed() ? '不明' : ($reply->user?->name ?? '不明') }}</span>
                 @if ($reply->user?->role === \App\Enums\UserRole::Coach)
                     <x-badge variant="info" size="sm">コーチ</x-badge>
                 @endif

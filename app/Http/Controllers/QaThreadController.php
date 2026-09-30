@@ -114,7 +114,7 @@ class QaThreadController extends Controller
         );
 
         return redirect()
-            ->route('qa-board.index', $thread)
+            ->route('qa-board.index')
             ->with('success', '質問を投稿しました。');
     }
 

@@ -39,7 +39,8 @@ class QaThread extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)
+            ->withTrashed();
     }
 
     /**
@@ -87,7 +88,12 @@ class QaThread extends Model
     {
         return $query->whereHas(
             'certification',
-            fn (Builder $q): Builder => $q->assignedTo($coach),
+            fn (Builder $q): Builder => $q
+                ->where(
+                    'status',
+                    CertificationStatus::Published,
+                )
+                ->assignedTo($coach),
         );
     }
 

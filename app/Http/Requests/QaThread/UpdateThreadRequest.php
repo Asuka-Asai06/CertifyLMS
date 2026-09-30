@@ -16,17 +16,10 @@ class UpdateThreadRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        /** @var QaThread|null $thread */
         $thread = $this->route('thread');
 
-        if ($thread === null) {
-            return false;
-        }
-
-        return $this->user()?->can(
-            'update',
-            $thread,
-        ) ?? false;
+        return $thread instanceof QaThread
+            && $this->user()?->can('update', $thread) === true;
     }
 
     /**
