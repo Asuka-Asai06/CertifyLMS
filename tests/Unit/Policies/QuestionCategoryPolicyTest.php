@@ -73,4 +73,33 @@ class QuestionCategoryPolicyTest extends TestCase
         $this->assertFalse($policy->update($student, $category));
         $this->assertFalse($policy->delete($student, $category));
     }
+
+    public function test_coach_cannot_manage_unassigned_certification(): void
+    {
+        // Arrange
+        $coach = User::factory()->coach()->create();
+        $admin = User::factory()->admin()->create();
+        $assignedCert = Certification::factory()->published()->create();
+        $otherCert = Certification::factory()->published()->create();
+
+        CertificationCoachAssignment::create([
+            'id' => (string) Str::ulid(),
+            'certification_id' => $assignedCert->id,
+            'user_id' => $coach->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+        ]);
+
+        $otherCategory = QuestionCategory::factory()
+            ->for($otherCert)
+            ->create();
+
+        $policy = new QuestionCategoryPolicy;
+
+        // Act & Assert
+        $this->assertFalse($policy->viewAny($coach, $otherCert));
+        $this->assertFalse($policy->create($coach, $otherCert));
+        $this->assertFalse($policy->update($coach, $otherCategory));
+        $this->assertFalse($policy->delete($coach, $otherCategory));
+    }
 }

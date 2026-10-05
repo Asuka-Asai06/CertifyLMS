@@ -66,4 +66,36 @@ class PartPolicyTest extends TestCase
         $this->assertFalse($policy->view($student, $draftPart));
         $this->assertFalse($policy->update($student, $publishedPart));
     }
+
+    public function test_coach_cannot_manage_unassigned_certification(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $assignedAdmin = User::factory()->admin()->create();
+        $assignedCert = Certification::factory()->published()->create();
+        $otherCert = Certification::factory()->published()->create();
+
+        CertificationCoachAssignment::create([
+            'id' => (string) Str::ulid(),
+            'certification_id' => $assignedCert->id,
+            'user_id' => $coach->id,
+            'assigned_by_user_id' => $assignedAdmin->id,
+            'assigned_at' => now(),
+        ]);
+
+        $otherPart = Part::factory()
+            ->for($otherCert)
+            ->published()
+            ->create();
+
+        $policy = new PartPolicy;
+
+        $this->assertFalse($policy->viewAny($coach, $otherCert));
+        $this->assertFalse($policy->view($coach, $otherPart));
+        $this->assertFalse($policy->create($coach, $otherCert));
+        $this->assertFalse($policy->update($coach, $otherPart));
+        $this->assertFalse($policy->delete($coach, $otherPart));
+        $this->assertFalse($policy->publish($coach, $otherPart));
+        $this->assertFalse($policy->unpublish($coach, $otherPart));
+        $this->assertFalse($policy->reorder($coach, $otherCert));
+    }
 }
