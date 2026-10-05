@@ -67,7 +67,7 @@ class MeetingPackController extends Controller
         );
 
         return redirect()
-            ->route('admin.meeting-packs.index')
+            ->route('admin.meeting-packs.show', $plan)
             ->with('success', '面談パックを作成しました。');
     }
 
