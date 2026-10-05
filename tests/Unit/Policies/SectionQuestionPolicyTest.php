@@ -91,4 +91,50 @@ class SectionQuestionPolicyTest extends TestCase
 
         $this->assertTrue($policy->update($coach, $assignedQuestion));
     }
+
+    public function test_coach_cannot_manage_unassigned_certification(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $admin = User::factory()->admin()->create();
+        $assignedCert = Certification::factory()->published()->create();
+        $otherCert = Certification::factory()->published()->create();
+
+        CertificationCoachAssignment::create([
+            'id' => (string) Str::ulid(),
+            'certification_id' => $assignedCert->id,
+            'user_id' => $coach->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+        ]);
+
+        $otherPart = Part::factory()
+            ->for($otherCert)
+            ->published()
+            ->create();
+
+        $otherChapter = Chapter::factory()
+            ->for($otherPart)
+            ->published()
+            ->create();
+
+        $otherSection = Section::factory()
+            ->for($otherChapter)
+            ->published()
+            ->create();
+
+        $otherQuestion = SectionQuestion::factory()
+            ->for($otherSection)
+            ->published()
+            ->create();
+
+        $policy = new SectionQuestionPolicy;
+
+        $this->assertFalse($policy->viewAny($coach, $otherSection));
+        $this->assertFalse($policy->view($coach, $otherQuestion));
+        $this->assertFalse($policy->create($coach, $otherSection));
+        $this->assertFalse($policy->update($coach, $otherQuestion));
+        $this->assertFalse($policy->delete($coach, $otherQuestion));
+        $this->assertFalse($policy->publish($coach, $otherQuestion));
+        $this->assertFalse($policy->unpublish($coach, $otherQuestion));
+    }
 }

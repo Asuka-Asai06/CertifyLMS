@@ -70,4 +70,44 @@ class SectionImagePolicyTest extends TestCase
         $this->assertFalse($policy->create($student, $section));
         $this->assertFalse($policy->delete($student, $image));
     }
+
+    public function test_coach_cannot_manage_unassigned_certification(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $admin = User::factory()->admin()->create();
+        $assignedCert = Certification::factory()->published()->create();
+        $otherCert = Certification::factory()->published()->create();
+
+        CertificationCoachAssignment::create([
+            'id' => (string) Str::ulid(),
+            'certification_id' => $assignedCert->id,
+            'user_id' => $coach->id,
+            'assigned_by_user_id' => $admin->id,
+            'assigned_at' => now(),
+        ]);
+
+        $otherPart = Part::factory()
+            ->for($otherCert)
+            ->published()
+            ->create();
+
+        $otherChapter = Chapter::factory()
+            ->for($otherPart)
+            ->published()
+            ->create();
+
+        $otherSection = Section::factory()
+            ->for($otherChapter)
+            ->published()
+            ->create();
+
+        $otherImage = SectionImage::factory()
+            ->for($otherSection)
+            ->create();
+
+        $policy = new SectionImagePolicy;
+
+        $this->assertFalse($policy->create($coach, $otherSection));
+        $this->assertFalse($policy->delete($coach, $otherImage));
+    }
 }

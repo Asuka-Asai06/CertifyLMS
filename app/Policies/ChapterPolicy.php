@@ -24,7 +24,10 @@ class ChapterPolicy
     {
         return match ($auth->role) {
             UserRole::Admin => true,
-            UserRole::Coach => false,
+            UserRole::Coach => $this->assignedCoach(
+                $auth,
+                $part->certification,
+            ),
             default => false,
         };
     }
@@ -33,7 +36,10 @@ class ChapterPolicy
     {
         return match ($auth->role) {
             UserRole::Admin => true,
-            UserRole::Coach => false,
+            UserRole::Coach => $this->assignedCoach(
+                $auth,
+                $chapter->part->certification,
+            ),
             default => $chapter->status === ContentStatus::Published,
         };
     }
@@ -72,7 +78,7 @@ class ChapterPolicy
     {
         return match ($auth->role) {
             UserRole::Admin => true,
-            UserRole::Coach => false,
+            UserRole::Coach => $this->assignedCoach($auth, $certification),
             default => false,
         };
     }
