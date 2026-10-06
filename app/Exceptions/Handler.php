@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exceptions;
 
+use App\Exceptions\Auth\InvalidInvitationTokenException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
@@ -95,6 +96,18 @@ class Handler extends ExceptionHandler
                 message: '指定されたリソースが見つかりません。',
                 errorCode: 'NOT_FOUND',
                 status: 404,
+            );
+        });
+
+        $this->renderable(function (InvalidInvitationTokenException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            return response()->view(
+                'auth.invitation-invalid',
+                [],
+                $e->getStatusCode(),
             );
         });
 
