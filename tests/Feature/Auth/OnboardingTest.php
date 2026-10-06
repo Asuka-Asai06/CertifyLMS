@@ -87,7 +87,7 @@ class OnboardingTest extends TestCase
 
         $response = $this->get($tampered);
 
-        $response->assertOk();
+        $response->assertStatus(410);
         $response->assertViewIs('auth.invitation-invalid');
     }
 
@@ -110,7 +110,7 @@ class OnboardingTest extends TestCase
 
         $response = $this->get($url);
 
-        $response->assertOk();
+        $response->assertStatus(410);
         $response->assertViewIs('auth.invitation-invalid');
     }
 
