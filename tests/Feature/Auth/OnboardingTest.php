@@ -339,4 +339,21 @@ class OnboardingTest extends TestCase
             'meeting_url' => null,
         ]);
     }
+
+    public function test_reusing_completed_invitation_url_returns_gone(): void
+    {
+        $invitation = $this->freshInvitation();
+
+        $url = $this->signedShowUrl($invitation);
+
+        $this->post($this->postUrl($invitation), [
+            'name' => '受講太郎',
+            'password' => 'secret-pass',
+            'password_confirmation' => 'secret-pass',
+        ]);
+
+        $response = $this->get($url);
+        $response->assertStatus(410);
+        $response->assertViewIs('auth.invitation-invalid');
+    }
 }
