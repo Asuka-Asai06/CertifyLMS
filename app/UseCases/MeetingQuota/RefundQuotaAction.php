@@ -22,12 +22,12 @@ final class RefundQuotaAction
      */
     public function __invoke(User $user, string $meetingId): MeetingQuotaTransaction
     {
-        return DB::transaction(fn () => MeetingQuotaTransaction::create([
+        return MeetingQuotaTransaction::create([
             'user_id' => $user->id,
             'type' => MeetingQuotaTransactionType::Refunded,
             'amount' => 1,
             'related_meeting_id' => $meetingId,
             'occurred_at' => now(),
-        ]));
+        ]);
     }
 }
