@@ -24,11 +24,15 @@ final class DestroyAction
     public function __invoke(Plan $plan): void
     {
         if ($plan->status !== PlanStatus::Draft) {
-            throw new PlanNotDeletableException;
+            throw new PlanNotDeletableException(
+                '下書き状態のプランのみ削除できます。先に下書きに戻すか、アーカイブを利用してください。'
+            );
         }
 
         if ($plan->users()->exists()) {
-            throw new PlanNotDeletableException;
+            throw new PlanNotDeletableException(
+                'このプランは受講者が紐づいているため削除できません。'
+            );
         }
 
         DB::transaction(fn () => $plan->delete());

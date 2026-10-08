@@ -8,16 +8,13 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
  * 削除条件を満たさないプランを削除しようとした際の例外（HTTP 409）。
- * `Plan\DestroyAction` が「下書き状態かつ受講者未紐づきの場合のみ削除可」
- * というドメインルールから throw する。
  */
 final class PlanNotDeletableException extends ConflictHttpException
 {
-    public function __construct(?\Throwable $previous = null)
-    {
-        parent::__construct(
-            '下書き状態かつ受講者が紐づいていないプランのみ削除できます。',
-            $previous
-        );
+    public function __construct(
+        string $message,
+        ?\Throwable $previous = null,
+    ) {
+        parent::__construct($message, $previous);
     }
 }

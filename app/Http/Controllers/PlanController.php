@@ -130,6 +130,6 @@ class PlanController extends Controller
 
         return redirect()
             ->route('admin.plans.show', $plan)
-            ->with('success', 'プランのアーカイブを解除しました。');
+            ->with('success', 'プランを下書きへ戻しました。');
     }
 }
