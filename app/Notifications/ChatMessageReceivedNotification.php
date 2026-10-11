@@ -39,7 +39,7 @@ class ChatMessageReceivedNotification extends Notification
         $this->message->loadMissing('sender');
 
         return (new MailMessage)
-            ->subject('新しいチャットメッセージが届きました')
+            ->subject('【Certify LMS】'.$this->message->sender->name.'さんから新着メッセージ')
             ->greeting('こんにちは、'.$notifiable->name.'さん')
             ->line($this->message->sender->name.'さんから新しいメッセージが届いています。')
             ->line($this->message->body)

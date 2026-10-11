@@ -36,7 +36,7 @@ class QaReplyReceivedNotificationTest extends TestCase
         // Assert
         $this->assertInstanceOf(MailMessage::class, $mail);
         $this->assertSame(
-            '質問掲示板に回答が投稿されました',
+            '【Certify LMS】質問掲示板に回答が投稿されました',
             $mail->subject,
         );
     }

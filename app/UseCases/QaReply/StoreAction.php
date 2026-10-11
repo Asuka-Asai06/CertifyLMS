@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\UseCases\QaReply;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\QaReply;
 use App\Models\QaThread;
 use App\Models\User;
@@ -48,9 +50,24 @@ final class StoreAction
                     return;
                 }
 
-                $thread->user->notify(
-                    new QaReplyReceivedNotification($reply)
-                );
+                $recipient = $thread->user;
+
+                if ($recipient->role === UserRole::Coach) {
+                    $recipient->notify(
+                        new QaReplyReceivedNotification($reply)
+                    );
+
+                    return;
+                }
+
+                if (
+                    $recipient->role === UserRole::Student
+                    && $recipient->status === UserStatus::InProgress
+                ) {
+                    $recipient->notify(
+                        new QaReplyReceivedNotification($reply)
+                    );
+                }
             });
 
             return $reply;

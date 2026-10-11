@@ -24,7 +24,12 @@ class MeetingReservedNotificationTest extends TestCase
     public function test_to_mail_has_expected_subject(): void
     {
         // Arrange
-        $meeting = Meeting::factory()->create();
+        $student = User::factory()->create([
+            'name' => '山田太郎',
+        ]);
+        $meeting = Meeting::factory()->create([
+            'student_id' => $student->id,
+        ]);
         $recipient = $meeting->coach;
 
         $notification = new MeetingReservedNotification($meeting);
@@ -35,7 +40,7 @@ class MeetingReservedNotificationTest extends TestCase
         // Assert
         $this->assertInstanceOf(MailMessage::class, $mail);
         $this->assertSame(
-            '面談の予約が入りました',
+            '【Certify LMS】山田太郎さんから新規面談予約',
             $mail->subject,
         );
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\UseCases\Chat;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Events\ChatMessageSent;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
@@ -47,9 +49,24 @@ final class StoreMessageAction
                     ->with('user')
                     ->get()
                     ->each(function (ChatMember $member) use ($message): void {
-                        $member->user->notify(
-                            new ChatMessageReceivedNotification($message)
-                        );
+                        $recipient = $member->user;
+
+                        if ($recipient->role === UserRole::Coach) {
+                            $recipient->notify(
+                                new ChatMessageReceivedNotification($message)
+                            );
+
+                            return;
+                        }
+
+                        if (
+                            $recipient->role === UserRole::Student
+                            && $recipient->status === UserStatus::InProgress
+                        ) {
+                            $recipient->notify(
+                                new ChatMessageReceivedNotification($message)
+                            );
+                        }
                     });
 
                 broadcast(new ChatMessageSent($message->load('sender')))->toOthers();

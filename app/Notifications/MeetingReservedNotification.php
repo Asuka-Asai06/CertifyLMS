@@ -39,7 +39,7 @@ class MeetingReservedNotification extends Notification
         $this->meeting->loadMissing('student');
 
         return (new MailMessage)
-            ->subject('面談の予約が入りました')
+            ->subject('【Certify LMS】'.$this->meeting->student->name.'さんから新規面談予約')
             ->greeting('こんにちは、'.$notifiable->name.'さん')
             ->line($this->meeting->student->name.'さんから面談の予約が入りました。')
             ->line('予約日時：'.$this->meeting->scheduled_at->format('Y年m月d日 H:i'))

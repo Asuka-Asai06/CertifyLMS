@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\EnrollmentStatus;
 use App\Enums\MeetingStatus;
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Exceptions\MeetingQuota\InsufficientMeetingQuotaException;
 use App\Exceptions\Mentoring\MeetingAlreadyStartedException;
 use App\Exceptions\Mentoring\MeetingNoAvailableCoachException;
@@ -266,9 +268,18 @@ class MeetingController extends Controller
             ? $meeting->coach
             : $meeting->student;
 
-        $recipient->notify(
-            new MeetingCanceledNotification($meeting)
-        );
+        if ($recipient->role === UserRole::Coach) {
+            $recipient->notify(
+                new MeetingCanceledNotification($meeting)
+            );
+        } elseif (
+            $recipient->role === UserRole::Student
+            && $recipient->status === UserStatus::InProgress
+        ) {
+            $recipient->notify(
+                new MeetingCanceledNotification($meeting)
+            );
+        }
 
         return redirect()
             ->route('meetings.show', $meeting)

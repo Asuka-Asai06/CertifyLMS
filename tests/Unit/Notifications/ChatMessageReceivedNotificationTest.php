@@ -43,7 +43,7 @@ class ChatMessageReceivedNotificationTest extends TestCase
         // Assert
         $this->assertInstanceOf(MailMessage::class, $mail);
         $this->assertSame(
-            '新しいチャットメッセージが届きました',
+            '【Certify LMS】送信者さんから新着メッセージ',
             $mail->subject,
         );
     }

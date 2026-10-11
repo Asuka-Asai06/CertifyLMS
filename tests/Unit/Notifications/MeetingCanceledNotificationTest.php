@@ -39,7 +39,7 @@ class MeetingCanceledNotificationTest extends TestCase
         // Assert
         $this->assertInstanceOf(MailMessage::class, $mail);
         $this->assertSame(
-            '面談がキャンセルされました',
+            '【Certify LMS】学生ユーザーさんの面談キャンセル',
             $mail->subject,
         );
     }

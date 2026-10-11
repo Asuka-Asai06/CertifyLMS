@@ -39,7 +39,7 @@ class QaReplyReceivedNotification extends Notification
         $this->reply->loadMissing('thread');
 
         return (new MailMessage)
-            ->subject('質問掲示板に回答が投稿されました')
+            ->subject('【Certify LMS】質問掲示板に回答が投稿されました')
             ->greeting('こんにちは、'.$notifiable->name.'さん')
             ->line('あなたが投稿した質問に回答が投稿されました。')
             ->line($this->reply->body)
@@ -50,11 +50,6 @@ class QaReplyReceivedNotification extends Notification
             ->line('CertifyLMSをご利用いただきありがとうございます。');
     }
 
-    /**
-     * Get the array representation of the notification.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(object $notifiable): array
     {
         $this->reply->loadMissing('thread', 'user');

@@ -43,7 +43,7 @@ class MeetingCanceledNotification extends Notification
             : $this->meeting->coach;
 
         return (new MailMessage)
-            ->subject('面談がキャンセルされました')
+            ->subject('【Certify LMS】'.$this->meeting->student->name.'さんの面談キャンセル')
             ->greeting('こんにちは、'.$notifiable->name.'さん')
             ->line($canceledBy->name.'さんが面談をキャンセルしました。')
             ->line(
