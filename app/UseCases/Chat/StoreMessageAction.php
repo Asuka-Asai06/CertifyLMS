@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\UseCases\Chat;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Events\ChatMessageSent;
 use App\Models\ChatMember;
 use App\Models\ChatMessage;
 use App\Models\ChatRoom;
 use App\Models\User;
+use App\Notifications\ChatMessageReceivedNotification;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,6 +20,7 @@ use Illuminate\Support\Facades\DB;
  * - INSERT 後、ChatMessage::booted() が `chat_rooms.last_message_at` を denormalize 更新する
  * - 送信者自身の `ChatMember.last_read_at = now()` を UPDATE(自分のメッセージは未読としてカウントしない)
  * - 通信失敗が DB 整合性に波及しないよう Pusher Broadcast は `DB::afterCommit()` で送る
+ * - メッセージ受信者への通知もトランザクション成功後に送る
  * - 担当コーチ未割当の判定は Controller 側で実施済(`CertificationCoachNotAssignedForChatException` 振り分け)
  */
 final class StoreMessageAction
@@ -38,7 +42,33 @@ final class StoreMessageAction
                 ->where('user_id', $sender->id)
                 ->update(['last_read_at' => now()]);
 
-            DB::afterCommit(function () use ($message): void {
+            DB::afterCommit(function () use ($message, $sender, $room): void {
+                ChatMember::query()
+                    ->where('chat_room_id', $room->id)
+                    ->where('user_id', '!=', $sender->id)
+                    ->with('user')
+                    ->get()
+                    ->each(function (ChatMember $member) use ($message): void {
+                        $recipient = $member->user;
+
+                        if ($recipient->role === UserRole::Coach) {
+                            $recipient->notify(
+                                new ChatMessageReceivedNotification($message)
+                            );
+
+                            return;
+                        }
+
+                        if (
+                            $recipient->role === UserRole::Student
+                            && $recipient->status === UserStatus::InProgress
+                        ) {
+                            $recipient->notify(
+                                new ChatMessageReceivedNotification($message)
+                            );
+                        }
+                    });
+
                 broadcast(new ChatMessageSent($message->load('sender')))->toOthers();
             });
 

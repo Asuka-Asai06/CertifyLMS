@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\UseCases\QaReply;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\QaReply;
 use App\Models\QaThread;
 use App\Models\User;
+use App\Notifications\QaReplyReceivedNotification;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -14,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  *
  * - 返信者にはログイン中の User を設定する
  * - 返信先には対象の QaThread を設定する
- * - 通知や Broadcast は本 Action では扱わない
+ * - 質問者へ回答通知を送信する
  * - 添付ファイルやネスト回答などは扱わない
  */
 final class StoreAction
@@ -36,11 +39,38 @@ final class StoreAction
             $thread,
             $validated,
         ): QaReply {
-            return QaReply::create([
+            $reply = QaReply::create([
                 'qa_thread_id' => $thread->id,
                 'user_id' => $user->id,
                 'body' => $validated['body'],
             ]);
+
+            DB::afterCommit(function () use ($user, $thread, $reply): void {
+                if ($thread->user_id === $user->id) {
+                    return;
+                }
+
+                $recipient = $thread->user;
+
+                if ($recipient->role === UserRole::Coach) {
+                    $recipient->notify(
+                        new QaReplyReceivedNotification($reply)
+                    );
+
+                    return;
+                }
+
+                if (
+                    $recipient->role === UserRole::Student
+                    && $recipient->status === UserStatus::InProgress
+                ) {
+                    $recipient->notify(
+                        new QaReplyReceivedNotification($reply)
+                    );
+                }
+            });
+
+            return $reply;
         });
     }
 }
