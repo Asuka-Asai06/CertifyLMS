@@ -12,6 +12,7 @@ use App\Enums\UserStatus;
 use App\Models\Certificate;
 use App\Models\Certification;
 use App\Models\Enrollment;
+use App\Models\EnrollmentGoal;
 use App\Models\EnrollmentStatusLog;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -152,6 +153,10 @@ final class EnrollmentSeeder extends Seeder
                     'changed_reason' => '新規登録',
                 ],
             );
+            // 1 件目の受講登録に、達成済み・未達成の目標を用意する。
+            if ($index === 0) {
+                $this->seedFixedGoals($enrollment);
+            }
         }
     }
 
@@ -199,6 +204,8 @@ final class EnrollmentSeeder extends Seeder
                     : now()->addDays($pattern['examDays'])->toDateString(),
                 'passed_at' => $passedAt,
             ]);
+
+            $this->seedDemoGoals($enrollment);
 
             $this->seedStatusLogs($enrollment, $pattern['state'], $student);
 
@@ -255,5 +262,65 @@ final class EnrollmentSeeder extends Seeder
             ->create([
                 'issued_at' => $passedAt ?? now(),
             ]);
+    }
+
+    /**
+     * 固定受講生の受講登録に、達成済み・未達成の目標を作成する。
+     */
+    private function seedFixedGoals(Enrollment $enrollment): void
+    {
+        EnrollmentGoal::firstOrCreate(
+            [
+                'enrollment_id' => $enrollment->id,
+                'title' => '基本用語を一通り復習する',
+            ],
+            [
+                'target_date' => null,
+                'description' => '学習範囲の基本用語を復習し、理解度を確認する。',
+                'achieved_at' => now()->subDays(3),
+            ],
+        );
+
+        EnrollmentGoal::firstOrCreate(
+            [
+                'enrollment_id' => $enrollment->id,
+                'title' => '過去問を20問解く',
+            ],
+            [
+                'target_date' => now()->addDays(14)->toDateString(),
+                'description' => '過去問を解き、間違えた問題を復習する。',
+                'achieved_at' => null,
+            ],
+        );
+    }
+
+    /**
+     * デモ受講生の受講登録に、認可確認用の個人目標を作成する。
+     */
+    private function seedDemoGoals(Enrollment $enrollment): void
+    {
+        EnrollmentGoal::firstOrCreate(
+            [
+                'enrollment_id' => $enrollment->id,
+                'title' => '学習範囲の復習を完了する',
+            ],
+            [
+                'target_date' => null,
+                'description' => '学習した内容を振り返り、理解度を確認する。',
+                'achieved_at' => now()->subDays(2),
+            ],
+        );
+
+        EnrollmentGoal::firstOrCreate(
+            [
+                'enrollment_id' => $enrollment->id,
+                'title' => '模擬試験に取り組む',
+            ],
+            [
+                'target_date' => now()->addDays(21)->toDateString(),
+                'description' => '模擬試験を解いて、苦手分野を把握する。',
+                'achieved_at' => null,
+            ],
+        );
     }
 }
