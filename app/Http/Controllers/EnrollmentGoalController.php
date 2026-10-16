@@ -32,7 +32,7 @@ class EnrollmentGoalController extends Controller
 
         return redirect()
             ->route('enrollments.show', $enrollment)
-            ->with('success', '目標を登録しました。');
+            ->with('success', '目標を追加しました。');
     }
 
     public function edit(EnrollmentGoal $goal): View

@@ -116,6 +116,7 @@ final class EnrollmentSeeder extends Seeder
                 'changed_reason' => '新規登録',
             ],
         );
+        $this->seedDemoGoals($enrollment);
     }
 
     /**
@@ -153,10 +154,7 @@ final class EnrollmentSeeder extends Seeder
                     'changed_reason' => '新規登録',
                 ],
             );
-            // 1 件目の受講登録に、達成済み・未達成の目標を用意する。
-            if ($index === 0) {
-                $this->seedFixedGoals($enrollment);
-            }
+            $this->seedFixedGoals($enrollment);
         }
     }
 
@@ -269,29 +267,52 @@ final class EnrollmentSeeder extends Seeder
      */
     private function seedFixedGoals(Enrollment $enrollment): void
     {
-        EnrollmentGoal::firstOrCreate(
+        $goals = [
             [
-                'enrollment_id' => $enrollment->id,
                 'title' => '基本用語を一通り復習する',
-            ],
-            [
                 'target_date' => null,
-                'description' => '学習範囲の基本用語を復習し、理解度を確認する。',
+                'description' => '学習範囲の基本用語を復習する。',
                 'achieved_at' => now()->subDays(3),
             ],
-        );
-
-        EnrollmentGoal::firstOrCreate(
             [
-                'enrollment_id' => $enrollment->id,
                 'title' => '過去問を20問解く',
-            ],
-            [
                 'target_date' => now()->addDays(14)->toDateString(),
-                'description' => '過去問を解き、間違えた問題を復習する。',
+                'description' => '過去問題を20問解いて理解度を確認する。',
                 'achieved_at' => null,
             ],
-        );
+            [
+                'title' => '模擬試験の間違いを復習する',
+                'target_date' => now()->addDays(7)->toDateString(),
+                'description' => '模擬試験で間違えた問題を復習する。',
+                'achieved_at' => null,
+            ],
+            [
+                'title' => '学習内容をノートにまとめる',
+                'target_date' => now()->subDays(2)->toDateString(),
+                'description' => 'これまでに学習した内容を整理する。',
+                'achieved_at' => now()->subDay(),
+            ],
+            [
+                'title' => '次回の学習計画を立てる',
+                'target_date' => now()->addDays(30)->toDateString(),
+                'description' => '次に取り組む内容と日程を決める。',
+                'achieved_at' => null,
+            ],
+        ];
+
+        foreach ($goals as $goal) {
+            EnrollmentGoal::firstOrCreate(
+                [
+                    'enrollment_id' => $enrollment->id,
+                    'title' => $goal['title'],
+                ],
+                [
+                    'target_date' => $goal['target_date'],
+                    'description' => $goal['description'],
+                    'achieved_at' => $goal['achieved_at'],
+                ],
+            );
+        }
     }
 
     /**

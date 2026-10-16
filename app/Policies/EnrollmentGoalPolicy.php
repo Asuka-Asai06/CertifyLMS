@@ -21,25 +21,33 @@ use App\Models\User;
  * コーチは担当資格に登録された受講生の目標を閲覧できるが、変更操作はできない。
  * admin は全受講生の目標を閲覧できるが、変更操作はできない。
  *
- * coach の判定は certification.coaches リレーション
- * (certification_coach_assignments 経由)で行う。
+ * coach の判定は certification.coaches リレーション(certification_coach_assignments 経由)で行う。
+ *
+ * 親enrollmentが論理削除されている場合は操作できない。
  */
 class EnrollmentGoalPolicy
 {
     public function view(User $user, EnrollmentGoal $goal): bool
     {
+        $enrollment = $goal->enrollment;
+
+        if ($enrollment === null || $enrollment->trashed()) {
+            return false;
+        }
+
         return match ($user->role) {
             UserRole::Admin => true,
-            UserRole::Coach => $this->isAssignedCoach($goal->enrollment, $user),
+            UserRole::Coach => $this->isAssignedCoach($enrollment, $user),
             UserRole::Student => $this->isActiveStudent($user)
-                && $goal->enrollment?->user_id === $user->id,
+                && $enrollment->user_id === $user->id,
             default => false,
         };
     }
 
     public function create(User $user, Enrollment $enrollment): bool
     {
-        return $this->isActiveStudent($user)
+        return ! $enrollment->trashed()
+            && $this->isActiveStudent($user)
             && $enrollment->user_id === $user->id;
     }
 
@@ -65,8 +73,12 @@ class EnrollmentGoalPolicy
 
     private function isOwner(User $user, EnrollmentGoal $goal): bool
     {
+        $enrollment = $goal->enrollment;
+
         return $this->isActiveStudent($user)
-            && $goal->enrollment?->user_id === $user->id;
+            && $enrollment !== null
+            && ! $enrollment->trashed()
+            && $enrollment->user_id === $user->id;
     }
 
     private function isActiveStudent(User $user): bool
