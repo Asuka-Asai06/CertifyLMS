@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Settings;
 
+use App\Enums\UserStatus;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -13,7 +14,13 @@ class StoreAvatarRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        $user = $this->user();
+
+        return $user !== null
+            && in_array($user->status, [
+                UserStatus::InProgress,
+                UserStatus::Graduated,
+            ], true);
     }
 
     /**
@@ -37,7 +44,7 @@ class StoreAvatarRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'avatar' => 'アイコン画像',
+            'avatar' => 'アバター画像',
         ];
     }
 }
