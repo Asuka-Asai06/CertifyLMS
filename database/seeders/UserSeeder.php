@@ -55,6 +55,7 @@ class UserSeeder extends Seeder
                 'status' => UserStatus::InProgress->value,
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
+                'avatar_url' => null,
             ])
             ->create();
 
@@ -69,6 +70,7 @@ class UserSeeder extends Seeder
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
                 'meeting_url' => 'https://meet.google.com/coach-taro-room',
+                'avatar_url' => '/storage/avatars/test-coach.png',
             ])
             ->create();
 
@@ -83,6 +85,7 @@ class UserSeeder extends Seeder
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
                 'meeting_url' => 'https://meet.google.com/coach-hanako-room',
+                'avatar_url' => null,
             ])
             ->create();
 
@@ -96,6 +99,7 @@ class UserSeeder extends Seeder
                 'bio' => '基本情報を 3 ヶ月で合格目標。',
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
+                'avatar_url' => '/storage/avatars/test-student.png',
             ])
             ->create();
 
@@ -111,6 +115,7 @@ class UserSeeder extends Seeder
                 'bio' => '面談回数を使い切った状態の受講生。',
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
+                'avatar_url' => null,
             ])
             ->create();
     }
