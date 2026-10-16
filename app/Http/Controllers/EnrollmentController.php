@@ -53,7 +53,8 @@ class EnrollmentController extends Controller
         // staff(admin / coach): 管理視点の一覧(テーブル + フィルタ + paginate)
         $query = Enrollment::query()
             ->forUser($user)
-            ->with(['user', 'certification.category', 'latestStatusLog']);
+            ->with(['user', 'certification.category', 'latestStatusLog'])
+            ->withCount('goals');
 
         if ($user->role === UserRole::Admin && $request->boolean('with_trashed')) {
             $query->withTrashed();
