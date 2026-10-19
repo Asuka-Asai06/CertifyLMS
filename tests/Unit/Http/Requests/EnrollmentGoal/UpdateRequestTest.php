@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Http\Requests\EnrollmentGoal;
+namespace Tests\Unit\Http\Requests\EnrollmentGoal;
 
 use App\Models\Enrollment;
 use App\Models\EnrollmentGoal;
