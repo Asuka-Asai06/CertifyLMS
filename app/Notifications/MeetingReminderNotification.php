@@ -12,12 +12,10 @@ use Illuminate\Notifications\Notification;
 /**
  * 面談リマインダー通知。
  *
- * 予約済みの面談について、前日と1時間前に
- * 受講生とコーチへリマインダーを送信する。
+ * 予約済みの面談について、前日と1時間前に受講生とコーチへリマインダーを送信する。
  *
  * - データベース通知とメール通知を送信する
  * - リマインダーの種別に応じた件名と本文を使用する
- * - 予約日時と面談詳細へのURLを通知内容に含める
  */
 class MeetingReminderNotification extends Notification
 {
@@ -35,7 +33,7 @@ class MeetingReminderNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $this->meeting->loadMissing('student');
+        $this->meeting->loadMissing('enrollment.certification');
 
         [$subject, $message] = $this->reminderContent();
 
@@ -43,6 +41,8 @@ class MeetingReminderNotification extends Notification
             ->subject('【Certify LMS】'.$subject)
             ->greeting('こんにちは、'.$notifiable->name.'さん')
             ->line($message)
+            ->line('資格名：'.$this->meeting->enrollment->certification->name)
+            ->line('相談内容：'.$this->meeting->topic)
             ->line(
                 '予約日時：'.$this->meeting->scheduled_at->format('Y年m月d日 H:i')
             )
@@ -55,7 +55,7 @@ class MeetingReminderNotification extends Notification
 
     public function toArray(object $notifiable): array
     {
-        $this->meeting->loadMissing('student');
+        $this->meeting->loadMissing('enrollment.certification');
 
         [$subject, $message] = $this->reminderContent();
 
@@ -63,7 +63,11 @@ class MeetingReminderNotification extends Notification
             'notification_type' => 'meeting_reminder_'.$this->reminderType,
             'title' => $subject,
             'message' => $message,
-            'body_preview' => '予約日時：'.$this->meeting->scheduled_at->format('Y年m月d日 H:i'),
+            'certification_name' => $this->meeting->enrollment->certification->name,
+            'topic' => $this->meeting->topic,
+            'body_preview' => '資格名：'.$this->meeting->enrollment->certification->name
+                .' / 相談内容：'.$this->meeting->topic
+                .' / 予約日時：'.$this->meeting->scheduled_at->format('Y年m月d日 H:i'),
             'url' => route('meetings.show', $this->meeting),
         ];
     }
@@ -75,14 +79,21 @@ class MeetingReminderNotification extends Notification
      */
     private function reminderContent(): array
     {
+        $startAt = $this->meeting->scheduled_at;
+        $endAt = $startAt->copy()->addHour();
+
+        $scheduledAt = $startAt->format('Y年m月d日 H:i')
+            .'～'
+            .$endAt->format('H:i');
+
         return match ($this->reminderType) {
             'eve' => [
                 '明日、面談の予定があります',
-                '明日、面談の予定があります。',
+                $scheduledAt.'に予定されている面談が明日となりました。',
             ],
             'one_hour_before' => [
                 '1時間後に面談の予定があります',
-                '1時間後に面談の予定があります。',
+                $scheduledAt.'に予定されている面談が1時間後となりました。',
             ],
             default => throw new \InvalidArgumentException(
                 '不正なリマインダー種別です: '.$this->reminderType

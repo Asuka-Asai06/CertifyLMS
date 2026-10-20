@@ -12,6 +12,15 @@ use App\Notifications\MeetingReminderNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
+/**
+ * 面談リマインダー通知 Schedule Command。
+ *
+ * - eve：面談日の前日18:00に、翌日開催予定の予約済み面談を抽出
+ * - one_hour_before：面談開始の約1時間前の面談を抽出
+ * - MeetingReminderNotification でデータベース通知 + メールを送信
+ * - 受講生は in_progress の場合のみ通知
+ * - MeetingReminderLog で同じ面談・通知種別の重複送信を防止
+ */
 class SendMeetingRemindersCommand extends Command
 {
     protected $signature = 'notifications:send-meeting-reminders
@@ -26,13 +35,7 @@ class SendMeetingRemindersCommand extends Command
     {
         $window = $this->option('window');
 
-        $hoursBefore = match ($window) {
-            'eve' => 24,
-            'one_hour_before' => 1,
-            default => null,
-        };
-
-        if ($hoursBefore === null) {
+        if (! in_array($window, ['eve', 'one_hour_before'], true)) {
             $this->error(
                 'オプション --window には eve または one_hour_before を指定してください。'
             );
@@ -40,17 +43,25 @@ class SendMeetingRemindersCommand extends Command
             return self::FAILURE;
         }
 
-        // 定期実行の間隔を考慮し、目標時刻までの5分間を対象にする
         $now = now();
-        $targetTime = $now->copy()->addHours($hoursBefore);
-        $windowStart = $targetTime->copy()->subMinutes(5);
+
+        if ($window === 'eve') {
+            // 前日18:00に、翌日開催予定の面談を対象にする
+            $windowStart = $now->copy()->addDay()->startOfDay();
+            $windowEnd = $windowStart->copy()->endOfDay();
+        } else {
+            // 面談開始の約1時間前を対象にする
+            $targetTime = $now->copy()->addHour();
+            $windowStart = $targetTime->copy()->subMinutes(5);
+            $windowEnd = $targetTime;
+        }
 
         $count = 0;
 
         Meeting::query()
             ->with(['student', 'coach'])
             ->where('status', MeetingStatus::Reserved->value)
-            ->whereBetween('scheduled_at', [$windowStart, $targetTime])
+            ->whereBetween('scheduled_at', [$windowStart, $windowEnd])
             ->orderBy('scheduled_at')
             ->chunkById(100, function ($meetings) use ($window, &$count): void {
                 foreach ($meetings as $meeting) {

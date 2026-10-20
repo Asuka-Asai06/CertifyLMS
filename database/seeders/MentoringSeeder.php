@@ -146,6 +146,35 @@ final class MentoringSeeder extends Seeder
         MeetingMemo::factory()->forMeeting($completed)->create([
             'body' => "初回面談で目標受験日と学習ペースをすり合わせました。\n\n次回までに過去問 1 年分を解いて結果を共有してもらう想定です。",
         ]);
+        // 前日通知の動作確認用：翌日の予約
+        $tomorrow = now()->copy()->addDay();
+
+        $eveReminderMeeting = Meeting::factory()
+            ->reserved()
+            ->forCoach($coach)
+            ->forStudent($student)
+            ->forEnrollment($enrollment)
+            ->create([
+                'scheduled_at' => $tomorrow,
+                'topic' => '前日リマインダー通知の動作確認',
+            ]);
+
+        $this->insertConsumedTransaction($student, $eveReminderMeeting);
+
+        // 1時間前通知の動作確認用：1時間後の予約
+        $oneHourLater = now()->copy()->addHour();
+
+        $oneHourReminderMeeting = Meeting::factory()
+            ->reserved()
+            ->forCoach($coach)
+            ->forStudent($student)
+            ->forEnrollment($enrollment)
+            ->create([
+                'scheduled_at' => $oneHourLater,
+                'topic' => '1時間前リマインダー通知の動作確認',
+            ]);
+
+        $this->insertConsumedTransaction($student, $oneHourReminderMeeting);
     }
 
     /**
