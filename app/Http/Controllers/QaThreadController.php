@@ -12,6 +12,7 @@ use App\Http\Requests\QaThread\StoreThreadRequest;
 use App\Http\Requests\QaThread\UpdateThreadRequest;
 use App\Models\Certification;
 use App\Models\QaThread;
+use App\UseCases\QaThread\DestroyAction;
 use App\UseCases\QaThread\StoreAction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -138,11 +139,11 @@ class QaThreadController extends Controller
             ->with('success', '質問を更新しました。');
     }
 
-    public function destroy(QaThread $thread): RedirectResponse
+    public function destroy(QaThread $thread, DestroyAction $action): RedirectResponse
     {
         $this->authorize('delete', $thread);
 
-        $thread->delete();
+        $action($thread, request()->user());
 
         $indexRoute = request()->routeIs('admin.*')
             ? 'admin.qa-board.index'
