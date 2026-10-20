@@ -299,6 +299,22 @@ class User extends Authenticatable
     }
 
     /**
+     * このユーザーが配信したお知らせ。
+     */
+    public function createdAnnouncements(): HasMany
+    {
+        return $this->hasMany(Announcement::class, 'created_by');
+    }
+
+    /**
+     * このユーザーを配信対象に指定したお知らせ。
+     */
+    public function targetedAnnouncements(): HasMany
+    {
+        return $this->hasMany(Announcement::class, 'target_user_id');
+    }
+
+    /**
      * Laravel フレームワーク側のシグナル(`Illuminate\Foundation\Auth\User::sendPasswordResetNotification($token)`)
      * との LSP 整合のため、引数に型宣言を付与しない(親クラスが parameter type なしで宣言しているため)。
      *
@@ -329,5 +345,19 @@ class User extends Authenticatable
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', [UserStatus::InProgress, UserStatus::Graduated]);
+    }
+
+    /**
+     * 受講中の受講生のみを取得する。
+     *
+     * @param Builder<User> $query
+     *
+     * @return Builder<User>
+     */
+    public function scopeInProgressStudents(Builder $query): Builder
+    {
+        return $query
+            ->where('role', UserRole::Student->value)
+            ->where('status', UserStatus::InProgress->value);
     }
 }

@@ -42,6 +42,16 @@ final class NotificationController extends Controller
         ));
     }
 
+    public function show(Request $request, string $notification): View
+    {
+        $notification = $request->user()
+            ->notifications()
+            ->where('id', $notification)
+            ->firstOrFail();
+
+        return view('notifications.show', compact('notification'));
+    }
+
     public function markAsRead(Request $request, string $notification): RedirectResponse
     {
         $user = $request->user();
