@@ -6,6 +6,7 @@ namespace Tests\Feature\Http\QaThread;
 
 use App\Enums\QaThreadStatus;
 use App\Models\Certification;
+use App\Models\QaReply;
 use App\Models\QaThread;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -238,67 +239,6 @@ class CrudTest extends TestCase
             ]);
     }
 
-    public function test_student_can_delete_own_thread(): void
-    {
-        $student = User::factory()->student()->inProgress()->create();
-        $certification = Certification::factory()->published()->create();
-
-        $thread = QaThread::factory()->create([
-            'user_id' => $student->id,
-            'certification_id' => $certification->id,
-        ]);
-
-        $this->actingAs($student)
-            ->delete(route('qa-board.destroy', $thread))
-            ->assertRedirect(route('qa-board.index'))
-            ->assertSessionHas('success', '質問を削除しました。');
-
-        $this->assertDatabaseMissing('qa_threads', [
-            'id' => $thread->id,
-        ]);
-    }
-
-    public function test_student_cannot_delete_other_student_thread(): void
-    {
-        $student = User::factory()->student()->inProgress()->create();
-        $otherStudent = User::factory()->student()->inProgress()->create();
-        $certification = Certification::factory()->published()->create();
-
-        $thread = QaThread::factory()->create([
-            'user_id' => $otherStudent->id,
-            'certification_id' => $certification->id,
-        ]);
-
-        $this->actingAs($student)
-            ->delete(route('qa-board.destroy', $thread))
-            ->assertForbidden();
-
-        $this->assertDatabaseHas('qa_threads', [
-            'id' => $thread->id,
-        ]);
-    }
-
-    public function test_admin_can_delete_any_thread(): void
-    {
-        $admin = User::factory()->admin()->inProgress()->create();
-        $student = User::factory()->student()->inProgress()->create();
-        $certification = Certification::factory()->draft()->create();
-
-        $thread = QaThread::factory()->create([
-            'user_id' => $student->id,
-            'certification_id' => $certification->id,
-        ]);
-
-        $this->actingAs($admin)
-            ->delete(route('admin.qa-board.destroy', $thread))
-            ->assertRedirect(route('admin.qa-board.index'))
-            ->assertSessionHas('success', '質問を削除しました。');
-
-        $this->assertDatabaseMissing('qa_threads', [
-            'id' => $thread->id,
-        ]);
-    }
-
     public function test_student_can_resolve_own_thread(): void
     {
         $student = User::factory()->student()->inProgress()->create();
@@ -414,26 +354,6 @@ class CrudTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_coach_cannot_delete_thread(): void
-    {
-        $coach = User::factory()->coach()->inProgress()->create();
-        $student = User::factory()->student()->inProgress()->create();
-        $certification = Certification::factory()->published()->create();
-
-        $thread = QaThread::factory()->create([
-            'user_id' => $student->id,
-            'certification_id' => $certification->id,
-        ]);
-
-        $this->actingAs($coach)
-            ->delete(route('qa-board.destroy', $thread))
-            ->assertForbidden();
-
-        $this->assertDatabaseHas('qa_threads', [
-            'id' => $thread->id,
-        ]);
-    }
-
     public function test_coach_cannot_resolve_thread(): void
     {
         $coach = User::factory()->coach()->inProgress()->create();
@@ -456,26 +376,6 @@ class CrudTest extends TestCase
             $thread->status,
         );
         $this->assertNull($thread->resolved_at);
-    }
-
-    public function test_admin_can_delete_unpublished_thread(): void
-    {
-        $admin = User::factory()->admin()->inProgress()->create();
-        $student = User::factory()->student()->inProgress()->create();
-        $certification = Certification::factory()->draft()->create();
-
-        $thread = QaThread::factory()->create([
-            'user_id' => $student->id,
-            'certification_id' => $certification->id,
-        ]);
-
-        $this->actingAs($admin)
-            ->delete(route('admin.qa-board.destroy', $thread))
-            ->assertRedirect(route('admin.qa-board.index'));
-
-        $this->assertDatabaseMissing('qa_threads', [
-            'id' => $thread->id,
-        ]);
     }
 
     public function test_unauthenticated_user_is_redirected_to_login_when_creating_thread(): void
@@ -507,6 +407,132 @@ class CrudTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
+    public function test_student_can_delete_own_thread_without_replies(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $student->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        $this->actingAs($student)
+            ->delete(route('qa-board.destroy', $thread))
+            ->assertRedirect(route('qa-board.index'))
+            ->assertSessionHas('success', '質問を削除しました。');
+
+        $this->assertDatabaseMissing('qa_threads', [
+            'id' => $thread->id,
+        ]);
+    }
+
+    public function test_student_cannot_delete_own_thread_with_replies(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $student->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        $reply = QaReply::factory()->create([
+            'qa_thread_id' => $thread->id,
+            'user_id' => $student->id,
+            'body' => '回答本文です。',
+        ]);
+
+        $this->actingAs($student)
+            ->from(route('qa-board.show', $thread))
+            ->delete(route('qa-board.destroy', $thread))
+            ->assertRedirect(route('qa-board.show', $thread))
+            ->assertSessionHas(
+                'error',
+                '回答が付いているスレッドは削除できません。',
+            );
+
+        $this->assertDatabaseHas('qa_threads', [
+            'id' => $thread->id,
+        ]);
+
+        $this->assertDatabaseHas('qa_replies', [
+            'id' => $reply->id,
+            'qa_thread_id' => $thread->id,
+        ]);
+    }
+
+    public function test_student_cannot_delete_other_student_thread(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $otherStudent = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $otherStudent->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        $this->actingAs($student)
+            ->delete(route('qa-board.destroy', $thread))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('qa_threads', [
+            'id' => $thread->id,
+        ]);
+    }
+
+    public function test_coach_cannot_delete_thread(): void
+    {
+        $coach = User::factory()->coach()->inProgress()->create();
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $student->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        $this->actingAs($coach)
+            ->delete(route('qa-board.destroy', $thread))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('qa_threads', [
+            'id' => $thread->id,
+        ]);
+    }
+
+    public function test_admin_can_delete_thread_with_replies(): void
+    {
+        $admin = User::factory()->admin()->inProgress()->create();
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->draft()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $student->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        $reply = QaReply::factory()->create([
+            'qa_thread_id' => $thread->id,
+            'user_id' => $student->id,
+            'body' => '回答本文です。',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.qa-board.destroy', $thread))
+            ->assertRedirect(route('admin.qa-board.index'))
+            ->assertSessionHas('success', '質問を削除しました。');
+
+        $this->assertDatabaseMissing('qa_threads', [
+            'id' => $thread->id,
+        ]);
+
+        $this->assertDatabaseMissing('qa_replies', [
+            'id' => $reply->id,
+        ]);
+    }
+
     public function test_unauthenticated_user_is_redirected_to_login_when_deleting_thread(): void
     {
         $certification = Certification::factory()->published()->create();
@@ -517,6 +543,34 @@ class CrudTest extends TestCase
 
         $this->delete(route('qa-board.destroy', $thread))
             ->assertRedirect(route('login'));
+
+        $this->assertDatabaseHas('qa_threads', [
+            'id' => $thread->id,
+        ]);
+    }
+
+    public function test_student_receives_http_409_when_deleting_thread_with_replies_as_json(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+
+        $thread = QaThread::factory()->create([
+            'user_id' => $student->id,
+            'certification_id' => $certification->id,
+        ]);
+
+        QaReply::factory()->create([
+            'qa_thread_id' => $thread->id,
+            'user_id' => $student->id,
+            'body' => '回答本文です。',
+        ]);
+
+        $this->actingAs($student)
+            ->deleteJson(route('qa-board.destroy', $thread))
+            ->assertStatus(409)
+            ->assertJsonFragment([
+                'message' => '回答が付いているスレッドは削除できません。',
+            ]);
 
         $this->assertDatabaseHas('qa_threads', [
             'id' => $thread->id,
