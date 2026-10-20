@@ -39,12 +39,8 @@ final class StoreAction
                 'title' => $validated['title'],
                 'body' => $validated['body'],
                 'target_type' => $targetType,
-                'target_certification_id' => $targetType === AnnouncementTargetType::Certification
-                    ? $validated['target_certification_id']
-                    : null,
-                'target_user_id' => $targetType === AnnouncementTargetType::User
-                    ? $validated['target_user_id']
-                    : null,
+                'target_certification_id' => $validated['target_certification_id'] ?? null,
+                'target_user_id' => $validated['target_user_id'] ?? null,
                 'dispatched_count' => $recipients->count(),
                 'dispatched_at' => now(),
                 'created_by' => $admin->id,

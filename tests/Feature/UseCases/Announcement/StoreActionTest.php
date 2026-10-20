@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\UseCases\Announcement;
 
 use App\Enums\AnnouncementTargetType;
-use App\Enums\EnrollmentStatus;
-use App\Enums\UserRole;
-use App\Enums\UserStatus;
 use App\Models\Announcement;
 use App\Models\Certification;
 use App\Models\Enrollment;
@@ -262,6 +259,115 @@ class StoreActionTest extends TestCase
         $this->assertSame(
             Announcement::class,
             $reflection->getReturnType()?->getName(),
+        );
+    }
+
+    public function test_archived_certification_announcement_notifies_only_learning_students(): void
+    {
+        // Arrange
+        Notification::fake();
+
+        $admin = User::factory()->admin()->create();
+
+        $certification = Certification::factory()->archived()->create();
+
+        $targetStudent = User::factory()->student()->inProgress()->create();
+        $otherStudent = User::factory()->student()->inProgress()->create();
+
+        // 公開停止中の資格を Learning 状態で受講している受講生
+        Enrollment::factory()
+            ->learning()
+            ->for($targetStudent)
+            ->for($certification)
+            ->create();
+
+        // 別の資格を Learning 状態で受講している受講生
+        $otherCertification = Certification::factory()->published()->create();
+
+        Enrollment::factory()
+            ->learning()
+            ->for($otherStudent)
+            ->for($otherCertification)
+            ->create();
+
+        // Act
+        $announcement = app(StoreAction::class)(
+            $admin,
+            [
+                'title' => '公開停止資格のお知らせ',
+                'body' => '対象資格を学習中の受講生向けのお知らせです。',
+                'target_type' => AnnouncementTargetType::Certification->value,
+                'target_certification_id' => $certification->id,
+            ],
+        );
+
+        // Assert: 公開停止中の資格でも配信履歴が保存される
+        $this->assertDatabaseHas('announcements', [
+            'id' => $announcement->id,
+            'target_type' => AnnouncementTargetType::Certification->value,
+            'target_certification_id' => $certification->id,
+            'dispatched_count' => 1,
+            'created_by' => $admin->id,
+        ]);
+
+        // Assert: 指定資格を学習中の受講生だけに通知される
+        Notification::assertSentTo(
+            $targetStudent,
+            AnnouncementNotification::class,
+        );
+
+        Notification::assertNotSentTo(
+            $otherStudent,
+            AnnouncementNotification::class,
+        );
+    }
+
+    public function test_certification_announcement_does_not_notify_withdrawn_enrollment_student(): void
+    {
+        // Arrange
+        Notification::fake();
+
+        $admin = User::factory()->admin()->create();
+
+        $certification = Certification::factory()->published()->create();
+
+        $learningStudent = User::factory()->student()->inProgress()->create();
+        $withdrawnEnrollmentStudent = User::factory()->student()->inProgress()->create();
+
+        Enrollment::factory()
+            ->learning()
+            ->for($learningStudent)
+            ->for($certification)
+            ->create();
+
+        Enrollment::factory()
+            ->failed()
+            ->for($withdrawnEnrollmentStudent)
+            ->for($certification)
+            ->create();
+
+        // Act
+        $announcement = app(StoreAction::class)(
+            $admin,
+            [
+                'title' => '資格別のお知らせ',
+                'body' => '指定資格の受講生向けのお知らせです。',
+                'target_type' => AnnouncementTargetType::Certification->value,
+                'target_certification_id' => $certification->id,
+            ],
+        );
+
+        // Assert: Learning 状態の受講生だけが対象になる
+        $this->assertSame(1, $announcement->dispatched_count);
+
+        Notification::assertSentTo(
+            $learningStudent,
+            AnnouncementNotification::class,
+        );
+
+        Notification::assertNotSentTo(
+            $withdrawnEnrollmentStudent,
+            AnnouncementNotification::class,
         );
     }
 }

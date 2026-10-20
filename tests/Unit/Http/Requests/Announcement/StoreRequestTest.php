@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Http\Requests\Announcement;
 
 use App\Enums\AnnouncementTargetType;
+use App\Http\Requests\Announcement\StoreRequest;
 use App\Models\Certification;
 use App\Models\User;
-use App\Http\Requests\Announcement\StoreRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -17,9 +17,8 @@ use Tests\TestCase;
  * お知らせ配信 StoreRequest の rules() を検証する Unit テスト。
  *
  * タイトル・本文の必須および文字数上限、配信対象の種別と ID の必須条件、
- * 公開中の資格および受講中の受講生に限定する条件を Validator::make で検証する。
+ * 公開中・公開停止中の資格および受講中の受講生に限定する条件を Validator::make で検証する。
  */
-
 class StoreRequestTest extends TestCase
 {
     use RefreshDatabase;
@@ -31,7 +30,7 @@ class StoreRequestTest extends TestCase
      */
     private function validateData(array $data): \Illuminate\Contracts\Validation\Validator
     {
-        return Validator::make($data, (new StoreRequest())->rules());
+        return Validator::make($data, (new StoreRequest)->rules());
     }
 
     /**
@@ -143,10 +142,22 @@ class StoreRequestTest extends TestCase
     }
 
     #[DataProvider('unpublishedCertificationStates')]
-    public function test_non_published_certification_fails_validation(
-        string $state,
-    ): void {
-        $certification = Certification::factory()->{$state}()->create();
+    public function test_archived_certification_passes_validation(): void
+    {
+        $certification = Certification::factory()->archived()->create();
+
+        $data = $this->validAllStudentsData();
+        $data['target_type'] = AnnouncementTargetType::Certification->value;
+        $data['target_certification_id'] = $certification->id;
+
+        $validator = $this->validateData($data);
+
+        $this->assertFalse($validator->fails());
+    }
+
+    public function test_draft_certification_fails_validation(): void
+    {
+        $certification = Certification::factory()->draft()->create();
 
         $data = $this->validAllStudentsData();
         $data['target_type'] = AnnouncementTargetType::Certification->value;

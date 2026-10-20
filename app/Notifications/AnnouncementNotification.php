@@ -59,7 +59,7 @@ class AnnouncementNotification extends Notification
         return [
             'notification_type' => 'admin_announcement',
             'title' => $this->announcement->title,
-            'message' => '運営から新しいお知らせが届いています。',
+            'message' => '管理者からのお知らせが届いています。',
             'body' => $this->announcement->body,
             'announcement_id' => $this->announcement->id,
             'url' => route('notifications.show', $this->notificationId),
