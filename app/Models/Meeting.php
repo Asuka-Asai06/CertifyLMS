@@ -101,6 +101,16 @@ class Meeting extends Model
     }
 
     /**
+     * 面談リマインダーの送信履歴。
+     *
+     * @return HasMany<MeetingReminderLog, $this>
+     */
+    public function reminderLogs(): HasMany
+    {
+        return $this->hasMany(MeetingReminderLog::class);
+    }
+
+    /**
      * 今後の予約(予約済 かつ 開始時刻が未来)に絞る。dashboard / 履歴 upcoming タブで利用。
      */
     public function scopeUpcoming(Builder $query): Builder

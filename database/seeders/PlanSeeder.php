@@ -161,9 +161,17 @@ class PlanSeeder extends Seeder
         [$plan1mo, $plan3mo, $plan6mo] = $publishedPlans;
 
         // 固定 student: 開始直後の 1 ヶ月プラン
-        $fixedStudent = User::query()->where('email', 'student@certify-lms.test')->first();
+        $fixedStudent = User::query()
+            ->where('email', 'student@certify-lms.test')
+            ->first();
+
         if ($fixedStudent !== null) {
             $this->attachPlanWithProgress($fixedStudent, $plan1mo, daysSinceStart: 2);
+
+            // 通知確認用に、この受講生だけ初期面談枠を 2 回追加する。
+            $fixedStudent->update([
+                'max_meetings' => $plan1mo->default_meeting_quota + 2,
+            ]);
         }
 
         // demo in_progress students × 8 を 3 種プランに散らし、進捗位置も多様化
