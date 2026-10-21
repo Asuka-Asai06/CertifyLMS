@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\UseCases\Meeting;
 
+use App\Enums\MeetingStatus;
 use App\Models\Certification;
 use App\Models\Enrollment;
 use App\Models\Meeting;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Notifications\MeetingCanceledNotification;
 use App\UseCases\MeetingQuota\ConsumeQuotaAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -39,6 +41,16 @@ class CancelActionTest extends TestCase
             'success',
             '面談をキャンセルしました。面談回数を返却しました。',
         );
+
+        $meeting->refresh();
+
+        $this->assertSame(
+            MeetingStatus::Canceled,
+            $meeting->status,
+        );
+
+        $this->assertSame($student->id, $meeting->canceled_by_user_id);
+        $this->assertNotNull($meeting->canceled_at);
 
         Notification::assertSentTo(
             $coach,
@@ -121,6 +133,131 @@ class CancelActionTest extends TestCase
     }
 
     /**
+     * すでにキャンセル済みの面談は、再度キャンセルできない。
+     */
+    public function test_already_canceled_meeting_cannot_be_canceled_again(): void
+    {
+        $data = $this->createMeeting();
+        $meeting = $data['meeting'];
+
+        $meeting->update([
+            'status' => MeetingStatus::Canceled,
+            'canceled_by_user_id' => $data['student']->id,
+            'canceled_at' => now(),
+        ]);
+
+        $this->assertCancellationRejectedWithoutChanges($data, 403);
+    }
+
+    /**
+     * 完了済みの面談はキャンセルできない。
+     */
+    public function test_completed_meeting_cannot_be_canceled(): void
+    {
+        $data = $this->createMeeting();
+        $meeting = $data['meeting'];
+
+        $meeting->update([
+            'status' => MeetingStatus::Completed,
+        ]);
+
+        $this->assertCancellationRejectedWithoutChanges($data, 403);
+    }
+
+    /**
+     * 開始済みの面談はキャンセルできず、面談レコードと面談回数が変わらないことを確認する。
+     */
+    public function test_meeting_cannot_be_canceled_after_start(): void
+    {
+        $data = $this->createMeeting();
+
+        $meeting = $data['meeting'];
+
+        $meeting->update([
+            'scheduled_at' => now()->subMinute(),
+        ]);
+
+        // キャンセル実行前の状態を取得する。
+        $beforeAttributes = $meeting->fresh()->getAttributes();
+        $beforeTransactionCount = DB::table(
+            $data['quotaTransactionTable'],
+        )->count();
+
+        $response = $this->actingAs($data['student'])->post(
+            route('meetings.cancel', $meeting),
+        );
+
+        // 例外発生時のリダイレクトを確認する。
+        $response->assertRedirect();
+
+        // 面談レコードが変更されていないことを確認する。
+        $this->assertSame(
+            $beforeAttributes,
+            $meeting->fresh()->getAttributes(),
+        );
+
+        // 面談回数の取引レコードが増減していないことを確認する。
+        $this->assertSame(
+            $beforeTransactionCount,
+            DB::table($data['quotaTransactionTable'])->count(),
+        );
+    }
+
+    /**
+     * 完了済みの面談では、キャンセル処理や回数返却が実行されない。
+     */
+    public function test_failed_cancellation_does_not_change_meeting_or_quota_transactions(): void
+    {
+        $data = $this->createMeeting();
+
+        $data['meeting']->update([
+            'status' => MeetingStatus::Completed,
+        ]);
+
+        $this->assertCancellationRejectedWithoutChanges($data, 403);
+    }
+
+    /**
+     * キャンセルが拒否された場合、面談レコードと面談回数トランザクションが変わらないことを確認する。
+     *
+     * @param array{
+     *     student: User,
+     *     coach: User,
+     *     admin: User,
+     *     meeting: Meeting,
+     *     quotaTransactionTable: string
+     * } $data
+     */
+    private function assertCancellationRejectedWithoutChanges(
+        array $data,
+        int $expectedStatus,
+    ): void {
+        $meeting = $data['meeting'];
+
+        $beforeAttributes = $meeting->fresh()->getAttributes();
+
+        $beforeTransactionCount = DB::table(
+            $data['quotaTransactionTable'],
+        )->count();
+
+        $response = $this->actingAs($data['student'])->post(
+            route('meetings.cancel', $meeting),
+        );
+
+        $response->assertStatus($expectedStatus);
+
+        $this->assertSame(
+            $beforeAttributes,
+            $meeting->fresh()->getAttributes(),
+        );
+
+        $this->assertSame(
+            $beforeTransactionCount,
+            DB::table($data['quotaTransactionTable'])->count(),
+        );
+    }
+
+    /**
      * テスト用の面談と当事者を作成する。
      *
      * @return array{
@@ -128,6 +265,7 @@ class CancelActionTest extends TestCase
      *     coach: User,
      *     admin: User,
      *     meeting: Meeting
+     *     quotaTransactionTable: string
      * }
      */
     private function createMeeting(
@@ -193,6 +331,7 @@ class CancelActionTest extends TestCase
             'coach' => $coach,
             'admin' => $admin,
             'meeting' => $meeting,
+            'quotaTransactionTable' => $transaction->getTable(),
         ];
     }
 }
