@@ -7,7 +7,6 @@ namespace App\Notifications;
 use App\Models\QaReply;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 
 /**
  * 質問掲示板への回答投稿時の通知。
@@ -21,7 +20,7 @@ use Illuminate\Notifications\Notification;
  *
  * @param QaReply $reply 通知対象となる質問への回答
  */
-class QaReplyReceivedNotification extends Notification
+class QaReplyReceivedNotification extends QueuedNotification
 {
     use Queueable;
 

@@ -7,7 +7,6 @@ namespace App\Notifications;
 use App\Models\Meeting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 
 /**
  * 面談リマインダー通知。
@@ -17,7 +16,7 @@ use Illuminate\Notifications\Notification;
  * - データベース通知とメール通知を送信する
  * - リマインダーの種別に応じた件名と本文を使用する
  */
-class MeetingReminderNotification extends Notification
+class MeetingReminderNotification extends QueuedNotification
 {
     use Queueable;
 

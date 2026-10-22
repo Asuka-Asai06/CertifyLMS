@@ -95,9 +95,11 @@ final class StoreAction
 
             $meeting = $meeting->fresh()->load('coach');
 
-            $meeting->coach->notify(
-                new MeetingReservedNotification($meeting),
-            );
+            DB::afterCommit(function () use ($meeting): void {
+                $meeting->coach->notify(
+                    new MeetingReservedNotification($meeting),
+                );
+            });
 
             return $meeting;
         });

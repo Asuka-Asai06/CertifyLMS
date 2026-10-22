@@ -14,8 +14,10 @@ use App\Models\User;
 use App\Notifications\ChatMessageReceivedNotification;
 use App\UseCases\Chat\StoreMessageAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -192,6 +194,26 @@ class StoreMessageActionTest extends TestCase
             $sender,
             $room,
             ['body' => 'テストメッセージです。'],
+        );
+    }
+
+    /**
+     * チャット受信通知がキューに登録されることを確認する。
+     */
+    public function test_chat_message_notification_is_queued(): void
+    {
+        Queue::fake();
+
+        $sender = User::factory()->student()->inProgress()->create();
+        $recipient = User::factory()->student()->inProgress()->create();
+
+        $this->sendMessageToMembers($sender, [$recipient]);
+
+        Queue::assertPushed(
+            SendQueuedNotifications::class,
+            function (SendQueuedNotifications $job): bool {
+                return $job->notification instanceof ChatMessageReceivedNotification;
+            },
         );
     }
 }

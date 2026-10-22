@@ -7,7 +7,6 @@ namespace App\Notifications;
 use App\Models\ChatMessage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 
 /**
  * チャットメッセージ受信時の通知。
@@ -21,7 +20,7 @@ use Illuminate\Notifications\Notification;
  *
  * @param ChatMessage $message 通知対象となるチャットメッセージ
  */
-class ChatMessageReceivedNotification extends Notification
+class ChatMessageReceivedNotification extends QueuedNotification
 {
     use Queueable;
 

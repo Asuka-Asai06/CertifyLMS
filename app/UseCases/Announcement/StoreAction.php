@@ -6,52 +6,61 @@ namespace App\UseCases\Announcement;
 
 use App\Enums\AnnouncementTargetType;
 use App\Enums\EnrollmentStatus;
+use App\Jobs\SendAnnouncementNotifications;
 use App\Models\Announcement;
 use App\Models\User;
-use App\Notifications\AnnouncementNotification;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * お知らせを新規作成し、対象受講生へ通知するユースケース。
- *
- * - 配信対象に応じて受講中の受講生を取得する
- * - 配信履歴の保存と配信件数・配信日時の記録をトランザクション内で行う
- * - 配信対象と関係のない対象 ID は null として保存する
- * - DB のコミット後にデータベース通知とメール通知を送信する
- */
 final class StoreAction
 {
+    /**
+     * お知らせを作成し、コミット後に非同期配信を開始する。
+     *
+     * @param array{
+     *     title: string,
+     *     body: string,
+     *     target_type: string,
+     *     target_certification_id?: string|null,
+     *     target_user_id?: string|null
+     * } $validated
+     */
     public function __invoke(User $admin, array $validated): Announcement
     {
-        return DB::transaction(function () use ($admin, $validated): Announcement {
+        return DB::transaction(function () use (
+            $admin,
+            $validated,
+        ): Announcement {
             $targetType = AnnouncementTargetType::from(
                 $validated['target_type'],
             );
 
-            $recipients = $this->getRecipients(
+            $targetCertificationId =
+                $validated['target_certification_id'] ?? null;
+
+            $targetUserId = $validated['target_user_id'] ?? null;
+
+            $dispatchedCount = $this->getRecipientsQuery(
                 $targetType,
-                $validated['target_certification_id'] ?? null,
-                $validated['target_user_id'] ?? null,
-            );
+                $targetCertificationId,
+                $targetUserId,
+            )->count();
 
             $announcement = Announcement::create([
                 'title' => $validated['title'],
                 'body' => $validated['body'],
                 'target_type' => $targetType,
-                'target_certification_id' => $validated['target_certification_id'] ?? null,
-                'target_user_id' => $validated['target_user_id'] ?? null,
-                'dispatched_count' => $recipients->count(),
+                'target_certification_id' => $targetCertificationId,
+                'target_user_id' => $targetUserId,
+                'dispatched_count' => $dispatchedCount,
                 'dispatched_at' => now(),
                 'created_by' => $admin->id,
             ]);
 
-            DB::afterCommit(function () use ($recipients, $announcement): void {
-                $recipients->each(function (User $recipient) use ($announcement): void {
-                    $recipient->notify(
-                        new AnnouncementNotification($announcement),
-                    );
-                });
+            DB::afterCommit(function () use ($announcement): void {
+                SendAnnouncementNotifications::dispatch(
+                    $announcement->id,
+                );
             });
 
             return $announcement;
@@ -59,33 +68,33 @@ final class StoreAction
     }
 
     /**
-     * 配信対象の受講中の受講生を取得する。
+     * お知らせの配信対象となるユーザーのクエリを作成する。
      *
-     * @return Collection<int, User>
+     * @return Builder<User>
      */
-    private function getRecipients(
+    private function getRecipientsQuery(
         AnnouncementTargetType $targetType,
         ?string $certificationId,
         ?string $userId,
-    ): Collection {
+    ): Builder {
         return match ($targetType) {
             AnnouncementTargetType::AllStudents => User::query()
-                ->inProgressStudents()
-                ->get(),
+                ->inProgressStudents(),
 
             AnnouncementTargetType::Certification => User::query()
                 ->inProgressStudents()
                 ->whereHas('enrollments', function ($query) use ($certificationId): void {
                     $query
                         ->where('certification_id', $certificationId)
-                        ->where('status', EnrollmentStatus::Learning->value);
-                })
-                ->get(),
+                        ->where(
+                            'status',
+                            EnrollmentStatus::Learning->value,
+                        );
+                }),
 
             AnnouncementTargetType::User => User::query()
                 ->inProgressStudents()
-                ->whereKey($userId)
-                ->get(),
+                ->whereKey($userId),
         };
     }
 }

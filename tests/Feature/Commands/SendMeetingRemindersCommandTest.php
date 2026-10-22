@@ -12,8 +12,10 @@ use App\Models\MeetingReminderLog;
 use App\Models\User;
 use App\Notifications\MeetingReminderNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -61,6 +63,35 @@ class SendMeetingRemindersCommandTest extends TestCase
             'meeting_id' => $meeting->id,
             'reminder_type' => 'eve',
         ]);
+    }
+
+    /**
+     * 前日リマインダー通知がキューに登録されることを確認する。
+     */
+    public function test_eve_reminder_notification_is_queued(): void
+    {
+        Queue::fake();
+
+        $this->travelTo(now()->setTime(18, 0));
+
+        $student = User::factory()->student()->inProgress()->create();
+        $coach = User::factory()->coach()->create();
+
+        $this->createMeeting(
+            $student,
+            $coach,
+            now()->addDay()->setTime(10, 0),
+        );
+
+        $this->artisan('notifications:send-meeting-reminders --window=eve')
+            ->assertExitCode(0);
+
+        Queue::assertPushed(
+            SendQueuedNotifications::class,
+            function (SendQueuedNotifications $job): bool {
+                return $job->notification instanceof MeetingReminderNotification;
+            },
+        );
     }
 
     public function test_one_hour_before_reminder_is_sent_for_meetings_in_the_target_window(): void

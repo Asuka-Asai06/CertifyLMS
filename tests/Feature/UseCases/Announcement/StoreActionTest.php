@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Tests\Feature\UseCases\Announcement;
 
 use App\Enums\AnnouncementTargetType;
+use App\Jobs\SendAnnouncementNotifications;
 use App\Models\Announcement;
 use App\Models\Certification;
 use App\Models\Enrollment;
 use App\Models\User;
 use App\Notifications\AnnouncementNotification;
 use App\UseCases\Announcement\StoreAction;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -25,7 +27,7 @@ use Tests\TestCase;
  */
 class StoreActionTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_creates_announcement_and_notifies_in_progress_students(): void
     {
@@ -368,6 +370,35 @@ class StoreActionTest extends TestCase
         Notification::assertNotSentTo(
             $withdrawnEnrollmentStudent,
             AnnouncementNotification::class,
+        );
+    }
+
+    /**
+     * お知らせ通知が同期送信されず、キューに登録されることを確認する。
+     */
+    public function test_announcement_notification_is_queued(): void
+    {
+        // Arrange
+        Queue::fake();
+
+        $admin = User::factory()->admin()->create();
+
+        User::factory()->student()->inProgress()->create();
+
+        // Act
+        $announcement = app(StoreAction::class)(
+            $admin,
+            [
+                'title' => '非同期配信テスト',
+                'body' => 'キュー投入を確認します。',
+                'target_type' => AnnouncementTargetType::AllStudents->value,
+            ],
+        );
+
+        // Assert
+        Queue::assertPushed(
+            SendAnnouncementNotifications::class,
+            fn (SendAnnouncementNotifications $job): bool => $job->announcementId === $announcement->id,
         );
     }
 }
