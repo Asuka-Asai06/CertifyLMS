@@ -125,6 +125,34 @@ sail bin pint --dirty    # 変更ファイルのみ整形
 sail bin pint --test     # 整形漏れの確認（CI 相当のチェック）
 ```
 
+## キューワーカーの起動
+本アプリケーションでは、通知の非同期送信に Laravel のデータベースキューを使用しています。
+`.env` で以下の設定を確認してください。
+```dotenv
+QUEUE_CONNECTION=database
+```
+開発環境で通知を非同期処理するには、別のターミナルで以下を実行してください。
+
+```bash
+sail artisan queue:work database
+```
+ワーカーは起動したままにしてください。停止する場合は `Ctrl+C` を押します。
+
+### 失敗したジョブの確認と再試行
+失敗したジョブを確認するには、以下を実行します。
+```bash
+sail artisan queue:failed
+```
+失敗原因を確認・修正した後、特定のジョブを再試行するには、以下を実行します。
+```bash
+sail artisan queue:retry <ID>
+```
+`<ID>` は `queue:failed` の結果に表示されたジョブIDに置き換えてください。
+すべての失敗ジョブを再試行する場合は、以下を実行します。
+```bash
+sail artisan queue:retry all
+```
+
 ## 使用技術
 
 - PHP 8.5 / Laravel 10
