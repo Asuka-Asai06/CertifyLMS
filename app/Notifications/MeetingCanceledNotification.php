@@ -7,7 +7,6 @@ namespace App\Notifications;
 use App\Models\Meeting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 
 /**
  * 面談キャンセル時の通知。
@@ -21,7 +20,7 @@ use Illuminate\Notifications\Notification;
  *
  * @param Meeting $meeting 通知対象となる面談
  */
-class MeetingCanceledNotification extends Notification
+class MeetingCanceledNotification extends QueuedNotification
 {
     use Queueable;
 

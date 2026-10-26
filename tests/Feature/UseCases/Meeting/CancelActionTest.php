@@ -12,8 +12,10 @@ use App\Models\User;
 use App\Notifications\MeetingCanceledNotification;
 use App\UseCases\MeetingQuota\ConsumeQuotaAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -172,12 +174,10 @@ class CancelActionTest extends TestCase
         $data = $this->createMeeting();
 
         $meeting = $data['meeting'];
-
         $meeting->update([
             'scheduled_at' => now()->subMinute(),
         ]);
 
-        // キャンセル実行前の状態を取得する。
         $beforeAttributes = $meeting->fresh()->getAttributes();
         $beforeTransactionCount = DB::table(
             $data['quotaTransactionTable'],
@@ -187,16 +187,13 @@ class CancelActionTest extends TestCase
             route('meetings.cancel', $meeting),
         );
 
-        // 例外発生時のリダイレクトを確認する。
         $response->assertRedirect();
 
-        // 面談レコードが変更されていないことを確認する。
         $this->assertSame(
             $beforeAttributes,
             $meeting->fresh()->getAttributes(),
         );
 
-        // 面談回数の取引レコードが増減していないことを確認する。
         $this->assertSame(
             $beforeTransactionCount,
             DB::table($data['quotaTransactionTable'])->count(),
@@ -215,6 +212,27 @@ class CancelActionTest extends TestCase
         ]);
 
         $this->assertCancellationRejectedWithoutChanges($data, 403);
+    }
+
+    /**
+     * 面談キャンセル通知がキューに登録されることを確認する。
+     */
+    public function test_meeting_cancellation_notification_is_queued(): void
+    {
+        Queue::fake();
+
+        $data = $this->createMeeting();
+
+        $this->actingAs($data['student'])->post(
+            route('meetings.cancel', $data['meeting']),
+        );
+
+        Queue::assertPushed(
+            SendQueuedNotifications::class,
+            function (SendQueuedNotifications $job): bool {
+                return $job->notification instanceof MeetingCanceledNotification;
+            },
+        );
     }
 
     /**

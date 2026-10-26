@@ -15,8 +15,10 @@ use App\Models\User;
 use App\Notifications\MeetingReservedNotification;
 use App\UseCases\Meeting\StoreAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -298,5 +300,30 @@ class StoreActionTest extends TestCase
             'enrollment' => $enrollment,
             'scheduledAt' => $scheduledAt,
         ];
+    }
+
+    /**
+     * 面談予約の通知がキューに登録されることを確認する。
+     */
+    public function test_meeting_reservation_notification_is_queued(): void
+    {
+        Queue::fake();
+
+        $context = $this->createReservationContext();
+
+        app(StoreAction::class)(
+            $context['enrollment'],
+            [
+                'scheduled_at' => $context['scheduledAt']->format('Y-m-d H:i:s'),
+                'topic' => 'キュー投入テスト',
+            ],
+        );
+
+        Queue::assertPushed(
+            SendQueuedNotifications::class,
+            function (SendQueuedNotifications $job): bool {
+                return $job->notification instanceof MeetingReservedNotification;
+            },
+        );
     }
 }

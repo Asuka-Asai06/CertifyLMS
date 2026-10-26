@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Notifications\QaReplyReceivedNotification;
 use App\UseCases\QaReply\StoreAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -169,6 +171,33 @@ class StoreActionTest extends TestCase
             $author,
             $thread,
             ['body' => 'テスト回答です。'],
+        );
+    }
+
+    /**
+     * Q&A 返信通知がキューに登録されることを確認する。
+     */
+    public function test_qa_reply_notification_is_queued(): void
+    {
+        Queue::fake();
+
+        $author = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $recipient = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $this->storeReply($author, $recipient);
+
+        Queue::assertPushed(
+            SendQueuedNotifications::class,
+            function (SendQueuedNotifications $job): bool {
+                return $job->notification instanceof QaReplyReceivedNotification;
+            },
         );
     }
 }

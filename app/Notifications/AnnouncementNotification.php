@@ -7,7 +7,6 @@ namespace App\Notifications;
 use App\Models\Announcement;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
 /**
@@ -19,7 +18,7 @@ use Illuminate\Support\Str;
  * - アプリ内通知から通知詳細ページへ遷移できる
  * - メールにはお知らせのタイトルと本文を含める
  */
-class AnnouncementNotification extends Notification
+class AnnouncementNotification extends QueuedNotification
 {
     use Queueable;
 
