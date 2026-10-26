@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -21,28 +22,36 @@ class EnrollmentStatsService
     /**
      * 全体 KPI(learning / passed / failed 件数 + 資格別内訳)を返す。
      *
+     * 集計結果をキャッシュし、2 回目以降の不要な DB 集計を防ぐ。
+     *
      * @return array{learning_count: int, passed_count: int, failed_count: int, total: int, by_certification: array<int, array{certification_id: string, certification_name: string, learning: int, passed: int, failed: int, total: int}>}
      */
     public function adminKpi(): array
     {
-        $counts = DB::table('enrollments')
-            ->whereNull('deleted_at')
-            ->selectRaw('status, COUNT(*) as cnt')
-            ->groupBy('status')
-            ->pluck('cnt', 'status')
-            ->all();
+        return Cache::remember(
+            config('dashboard.admin_kpi_cache_key'),
+            config('dashboard.admin_stats_cache_ttl'),
+            function (): array {
+                $counts = DB::table('enrollments')
+                    ->whereNull('deleted_at')
+                    ->selectRaw('status, COUNT(*) as cnt')
+                    ->groupBy('status')
+                    ->pluck('cnt', 'status')
+                    ->all();
 
-        $learning = (int) ($counts[EnrollmentStatus::Learning->value] ?? 0);
-        $passed = (int) ($counts[EnrollmentStatus::Passed->value] ?? 0);
-        $failed = (int) ($counts[EnrollmentStatus::Failed->value] ?? 0);
+                $learning = (int) ($counts[EnrollmentStatus::Learning->value] ?? 0);
+                $passed = (int) ($counts[EnrollmentStatus::Passed->value] ?? 0);
+                $failed = (int) ($counts[EnrollmentStatus::Failed->value] ?? 0);
 
-        return [
-            'learning_count' => $learning,
-            'passed_count' => $passed,
-            'failed_count' => $failed,
-            'total' => $learning + $passed + $failed,
-            'by_certification' => $this->byCertification(),
-        ];
+                return [
+                    'learning_count' => $learning,
+                    'passed_count' => $passed,
+                    'failed_count' => $failed,
+                    'total' => $learning + $passed + $failed,
+                    'by_certification' => $this->byCertification(),
+                ];
+            },
+        );
     }
 
     /**
@@ -70,22 +79,28 @@ class EnrollmentStatsService
 
     /**
      * 資格別の修了率(passed / 全件)を Collection で返す。
-     * 0 件の資格は除外する(0 % 表示は意味がないため)。
-     * 一覧は受講生数(total)の多い順、上位 10 件まで。
+     * 0 件の資格は除外し、受講生数(total)の多い順に並べる。
      *
      * @return Collection<int, array{certification_id: string, certification_name: string, learning: int, passed: int, failed: int, total: int, completion_rate: float}>
      */
     public function completionRateByCertification(): Collection
     {
-        return collect($this->byCertification())
-            ->filter(fn (array $row): bool => $row['total'] > 0)
-            ->map(function (array $row): array {
-                $row['completion_rate'] = round($row['passed'] / $row['total'], 4);
+        $rows = Cache::remember(
+            config('dashboard.admin_completion_rate_cache_key'),
+            config('dashboard.admin_stats_cache_ttl'),
+            fn (): array => collect($this->byCertification())
+                ->filter(fn (array $row): bool => $row['total'] > 0)
+                ->map(function (array $row): array {
+                    $row['completion_rate'] = round($row['passed'] / $row['total'], 4);
 
-                return $row;
-            })
-            ->sortByDesc('total')
-            ->values();
+                    return $row;
+                })
+                ->sortByDesc('total')
+                ->values()
+                ->all(),
+        );
+
+        return collect($rows);
     }
 
     /**
@@ -121,5 +136,14 @@ class EnrollmentStatsService
         usort($list, fn (array $a, array $b): int => $b['total'] <=> $a['total']);
 
         return $list;
+    }
+
+    /**
+     * 管理者ダッシュボードの集計キャッシュを無効化する。
+     */
+    public function forgetAdminDashboardCache(): void
+    {
+        Cache::forget(config('dashboard.admin_kpi_cache_key'));
+        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
     }
 }
