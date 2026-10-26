@@ -10,12 +10,20 @@ use App\Models\User;
 use App\Services\EnrollmentStatsService;
 use App\UseCases\Dashboard\FetchAdminDashboardAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
 
 class FetchAdminDashboardActionTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Cache::flush();
+    }
 
     public function test_returns_kpi_aggregated_from_enrollments(): void
     {

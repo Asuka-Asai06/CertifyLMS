@@ -8,6 +8,7 @@ use App\Enums\EnrollmentStatus;
 use App\Models\Enrollment;
 use App\Models\EnrollmentStatusLog;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Enrollment 状態遷移の監査ログ(`EnrollmentStatusLog`)を INSERT する Service。
@@ -20,6 +21,10 @@ use App\Models\User;
  */
 final class EnrollmentStatusChangeService
 {
+    public function __construct(
+        private readonly EnrollmentStatsService $stats,
+    ) {}
+
     /**
      * @param Enrollment $enrollment 状態遷移する対象 Enrollment
      * @param ?EnrollmentStatus $fromStatus 遷移前ステータス(初回登録時のみ null、それ以降は必須)
@@ -34,12 +39,16 @@ final class EnrollmentStatusChangeService
         ?User $changedBy,
         ?string $reason = null,
     ): EnrollmentStatusLog {
-        return $enrollment->statusLogs()->create([
+        $statusLog = $enrollment->statusLogs()->create([
             'from_status' => $fromStatus?->value,
             'to_status' => $toStatus->value,
             'changed_by_user_id' => $changedBy?->id,
             'changed_reason' => $reason,
             'changed_at' => now(),
         ]);
+
+        DB::afterCommit(fn (): mixed => $this->stats->forgetAdminDashboardCache());
+
+        return $statusLog;
     }
 }

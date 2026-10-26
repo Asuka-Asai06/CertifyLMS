@@ -25,6 +25,12 @@ class AdminDashboardCacheTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Cache::flush();
+    }
+
     public function test_admin_kpi_is_served_from_cache_on_second_fetch(): void
     {
         // Arrange: admin + 受講中 2 件、キャッシュは空の状態から始める
