@@ -55,7 +55,7 @@ class QueuedNotificationTest extends TestCase
         );
 
         $this->assertSame(
-            4,
+            3,
             $reflection->getProperty('tries')->getDefaultValue(),
         );
 

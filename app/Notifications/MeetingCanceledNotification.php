@@ -20,7 +20,7 @@ use Illuminate\Notifications\Messages\MailMessage;
  *
  * @param Meeting $meeting 通知対象となる面談
  */
-class MeetingCanceledNotification extends QueuedNotificationgit
+class MeetingCanceledNotification extends QueuedNotification
 {
     use Queueable;
 

@@ -22,7 +22,7 @@ abstract class QueuedNotification extends Notification implements ShouldQueue
     /**
      * 初回を含む最大試行回数。
      */
-    public int $tries = 4;
+    public int $tries = 3;
 
     /**
      * 再試行時の待機時間（秒）。
