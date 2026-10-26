@@ -28,9 +28,6 @@ class AdminDashboardCacheTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        dump([
-            'enrollments_after_parent_setup' => Enrollment::count(),
-        ]);
         Cache::flush();
     }
 

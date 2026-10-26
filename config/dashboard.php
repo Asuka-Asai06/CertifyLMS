@@ -17,5 +17,5 @@ return [
 
     'admin_completion_rate_cache_key' => 'dashboard.admin_completion_rate',
 
-    'admin_stats_cache_ttl' => (int) env('DASHBOARD_ADMIN_STATS_CACHE_TTL', 300),
+    'admin_stats_cache_ttl' => 300,
 ];
