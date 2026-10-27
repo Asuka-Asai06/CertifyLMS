@@ -65,4 +65,12 @@ class EnrollmentGoal extends Model
             ->orderBy('target_date')
             ->orderByDesc('created_at');
     }
+
+    /**
+     * 個人目標が達成済みか判定する。
+     */
+    public function isAchieved(): bool
+    {
+        return $this->achieved_at !== null;
+    }
 }
