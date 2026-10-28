@@ -11,7 +11,7 @@
 ])
 
 @php
-    $model = (string) config('ai-chat.gemini.model', 'gemini-2.5-flash');
+    $model = (string) config('ai-chat.gemini.model', 'gemini-3.8-flash');
 
     if ($sectionId && $sectionTitle) {
         $ctxLabel = '📚 '.$sectionTitle;

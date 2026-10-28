@@ -7,6 +7,7 @@ namespace App\Http;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\EnsureActiveLearning;
+use App\Http\Middleware\EnsureAiChatEnabled;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -103,5 +104,6 @@ class Kernel extends HttpKernel
         'start-learning-session' => StartLearningSession::class,
         'throttle' => ThrottleRequests::class,
         'verified' => EnsureEmailIsVerified::class,
+        'ai-chat.enabled' => EnsureAiChatEnabled::class,
     ];
 }
