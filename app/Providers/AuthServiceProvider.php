@@ -29,6 +29,7 @@ use App\Models\SectionQuestion;
 use App\Models\SectionQuestionAnswer;
 use App\Models\SectionQuestionAttempt;
 use App\Models\User;
+use App\Policies\CertificatePolicy;
 use App\Policies\CertificationCategoryPolicy;
 use App\Policies\CertificationPolicy;
 use App\Policies\ChapterPolicy;
@@ -100,6 +101,7 @@ class AuthServiceProvider extends ServiceProvider
         QaThread::class => QaThreadPolicy::class,
         QaReply::class => QaReplyPolicy::class,
         CoachAvailability::class => CoachAvailabilityPolicy::class,
+        Certificate::class => CertificatePolicy::class,
     ];
 
     /**
