@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\GoogleCalendarService;
 use App\UseCases\Settings\CompleteGoogleCalendarOAuthAction;
+use App\UseCases\Settings\UnlinkGoogleCalendarAction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -90,9 +91,21 @@ class GoogleCalendarController extends Controller
     /**
      * Google カレンダーの連携情報を解除する。
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, UnlinkGoogleCalendarAction $action): RedirectResponse
     {
-        $request->user()->googleCredential()->delete();
+        /** @var User $user */
+        $user = $request->user();
+
+        $revoked = $action($user);
+
+        if (! $revoked) {
+            return redirect()
+                ->route('settings.availability.index')
+                ->with(
+                    'warning',
+                    'LMS 側の連携は解除しましたが、Google 側のアクセス権を失効できませんでした。Google アカウントの設定からアクセス権を確認してください。',
+                );
+        }
 
         return redirect()
             ->route('settings.availability.index')

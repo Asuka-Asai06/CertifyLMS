@@ -267,4 +267,22 @@ final class GoogleCalendarService
             throw $exception;
         }
     }
+
+    /**
+     * Google OAuth のトークンを失効させる。
+     *
+     * @throws Throwable Google OAuth のトークン失効処理に失敗した場合
+     */
+    public function revokeToken(string $token): void
+    {
+        if ($token === '') {
+            throw new RuntimeException('Google OAuth のトークンがありません。');
+        }
+
+        $client = $this->createClient();
+
+        if (! $client->revokeToken($token)) {
+            throw new RuntimeException('Google OAuth のトークンを失効できませんでした。');
+        }
+    }
 }

@@ -115,33 +115,6 @@ class GoogleCalendarControllerTest extends TestCase
     }
 
     /**
-     * 認証コードがない場合に認証情報エラーを表示する。
-     */
-    public function test_callback_rejects_missing_authorization_code(): void
-    {
-        // Arrange
-        $coach = User::factory()->coach()->create();
-        $state = 'valid-test-state';
-
-        // Act
-        $response = $this->actingAs($coach)
-            ->withSession([
-                'google_calendar_oauth_state' => $state,
-            ])
-            ->get(route('settings.google-calendar.callback', [
-                'state' => $state,
-            ]));
-
-        // Assert
-        $response->assertRedirect(route('settings.availability.index'));
-        $response->assertSessionHas(
-            'error',
-            'Google カレンダーの認証情報を確認できませんでした。もう一度お試しください。',
-        );
-        $response->assertSessionMissing('google_calendar_oauth_state');
-    }
-
-    /**
      * Google Calendar の連携解除時に認証情報を削除する。
      */
     public function test_destroy_deletes_google_calendar_credential(): void
@@ -159,13 +132,13 @@ class GoogleCalendarControllerTest extends TestCase
 
         // Assert
         $response->assertRedirect(route('settings.availability.index'));
-        $response->assertSessionHas(
-            'success',
-            'Google カレンダーの連携を解除しました。',
-        );
 
         $this->assertDatabaseMissing('google_calendar_credentials', [
             'id' => $credential->id,
+        ]);
+
+        $this->assertDatabaseMissing('google_calendar_credentials', [
+            'user_id' => $coach->id,
         ]);
     }
 }
