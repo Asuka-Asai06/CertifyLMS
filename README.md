@@ -170,4 +170,10 @@ sail artisan queue:retry all
 
 - `PUSHER_*` — チャットのリアルタイム配信に使用します。有効にする場合は Pusher のキーを取得して設定し、`BROADCAST_DRIVER=pusher` に変更してください。未設定（既定の `BROADCAST_DRIVER=log`）でもメッセージの送受信自体は動作し、相手画面へのリアルタイム反映のみ行われません
 
+### Google Calendar 連携
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google Calendar API の OAuth 認証に使用します。Google Cloud で OAuth クライアントを作成し、取得した値を設定してください。
+- `GOOGLE_REDIRECT_URI` — Google OAuth 認証後のコールバック URL を設定します。ローカル開発環境では `http://localhost:8000/settings/google-calendar/callback` を使用します。Google Cloud 側の承認済みリダイレクト URI にも同じ URL を登録してください。
+
+Google Calendar 連携を利用するには、Google Cloud 側で必要な Calendar API を有効にし、OAuth 同意画面と OAuth クライアントを設定する必要があります。開発環境では、使用する Google アカウントが OAuth アプリのテストユーザーとして登録されていることも確認してください。
+
 新しい環境変数やセットアップ手順を追加した場合は、`.env.example` と本 README に追記し、チームの誰でも環境を再現できる状態を保ってください。
