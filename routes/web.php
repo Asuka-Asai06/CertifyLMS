@@ -22,6 +22,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LearningHourTargetController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingPackController;
+use App\Http\Controllers\MeetingQuotaCheckoutController;
 use App\Http\Controllers\MeetingQuotaHistoryController;
 use App\Http\Controllers\MockExamAnswerController;
 use App\Http\Controllers\MockExamCatalogController;
@@ -50,6 +51,7 @@ use App\Http\Controllers\Settings\GoogleCalendarController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SettingsDefaultEnrollmentController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeakDrillController;
 use App\Http\Controllers\WeakDrillResultController;
@@ -620,7 +622,18 @@ Route::middleware(['auth', 'role:coach'])
 Route::middleware(['auth', 'role:student', 'active-learning'])->prefix('meeting-quota')->name('meeting-quota.')->group(function () {
     // 面談回数履歴
     Route::get('history', [MeetingQuotaHistoryController::class, 'index'])->name('history');
+    // 面談パック購入画面
+    Route::get('checkout', [MeetingQuotaCheckoutController::class, 'index'])->name('checkout.select');
+    // Stripe決済開始
+    Route::post('checkout', [MeetingQuotaCheckoutController::class, 'store'])->name('checkout.create');
+    // 決済完了画面
+    Route::get('success', [MeetingQuotaCheckoutController::class, 'success'])->name('success');
 });
+
+// ============================================================
+// Stripe Webhook（Stripeからの決済通知）
+// ============================================================
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])->name('webhooks.stripe');
 
 // ============================================================
 // PDFダウンロード用ルート（認証必須）

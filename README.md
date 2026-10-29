@@ -176,4 +176,45 @@ sail artisan queue:retry all
 
 Google Calendar 連携を利用するには、Google Cloud 側で必要な Calendar API を有効にし、OAuth 同意画面と OAuth クライアントを設定する必要があります。開発環境では、使用する Google アカウントが OAuth アプリのテストユーザーとして登録されていることも確認してください。
 
+### Stripe 連携（追加面談購入）
+- `STRIPE_SECRET` — Stripe API の認証に使用します。Stripe ダッシュボードで開発者用のテスト用シークレットキー（`sk_test_...`）を取得して設定してください。
+- `STRIPE_WEBHOOK_SECRET` — Stripe Webhook の署名検証に使用します。ローカル開発環境では Stripe CLI で `stripe listen` を実行し、表示された署名シークレット（`whsec_...`）を設定してください。
+
+#### 初期設定
+1. [Stripe ダッシュボード](https://dashboard.stripe.com/) にログインし、テスト環境を使用できる状態にします。
+2. 開発者向けの API キー設定画面から、テスト用シークレットキー（`sk_test_...`）を取得し、`.env` の `STRIPE_SECRET` に設定します。
+3. Stripe CLI をインストールし、ターミナルで Stripe アカウントにログインします。
+
+   ```bash
+   stripe login
+   ```
+
+4. Laravel アプリケーションがローカルで起動していることを確認し、別のターミナルで次のコマンドを実行します。
+
+   ```bash
+   stripe listen \
+     --events checkout.session.completed,checkout.session.expired,checkout.session.async_payment_failed \
+     --forward-to http://localhost:8000/webhooks/stripe
+   ```
+
+5. コマンドの実行結果に表示された Webhook 署名シークレット（`whsec_...`）を `.env` の `STRIPE_WEBHOOK_SECRET` に設定します。Stripe CLI が表示する値はローカル開発用です。本番環境などの別環境では、それぞれの Webhook 設定に対応する署名シークレットを使用してください。
+6. `.env` を変更した場合は、必要に応じて設定キャッシュをクリアします。
+
+   ```bash
+   ./vendor/bin/sail artisan config:clear
+   ```
+
+#### 決済・Webhook の動作確認
+1. Laravel アプリケーションと Stripe CLI の両方を起動しておきます。Webhook の転送中は `stripe listen` を実行しているターミナルを閉じないでください。
+2. `student@certify-lms.test` などの受講中アカウントでログインし、追加面談パックの購入画面を開きます。
+3. 購入するパックを選択し、Stripe Checkout 画面でテスト決済を行います。Stripe が案内するテストカード番号を使用し、有効期限・CVC などにはテスト用の値を入力してください。実際のカード情報は使用しないでください。
+4. 決済完了後、購入履歴が「決済完了」になり、面談残数に購入回数が加算されていることを確認します。
+5. Stripe CLI のターミナルで `checkout.session.completed` などのイベントが転送され、Laravel が正常に応答していることを確認します。
+6. 必要に応じて、Checkout 画面でのキャンセルや期限切れ、決済失敗のケースも確認します。状態が変化するタイミングは Stripe のイベントによって異なります。
+
+#### 注意事項
+
+- Webhook は `/webhooks/stripe` で受信し、署名検証に成功したイベントだけを処理します。
+- Stripe CLI の転送はローカル開発用です。デプロイ環境では、Stripe 側に Webhook エンドポイントを登録し、その環境専用の署名シークレットを設定してください。
+
 新しい環境変数やセットアップ手順を追加した場合は、`.env.example` と本 README に追記し、チームの誰でも環境を再現できる状態を保ってください。
