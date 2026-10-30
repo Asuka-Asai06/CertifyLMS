@@ -56,15 +56,17 @@ class CreateConversationActionTest extends TestCase
             $result['conversation'],
         );
         $this->assertSame(
-            '新しい会話',
+            '新規相談',
             $result['conversation']->title,
         );
         $this->assertNull($result['failure_message']);
 
+        $this->assertTrue($result['conversation']->auto_title_enabled);
+
         $this->assertDatabaseHas('ai_chat_conversations', [
             'id' => $result['conversation']->id,
             'user_id' => $student->id,
-            'title' => '新しい会話',
+            'title' => '新規相談',
         ]);
     }
 
@@ -101,25 +103,22 @@ class CreateConversationActionTest extends TestCase
 
         // Act
         $result = $action($student, [
-            'title' => '二分探索木の質問',
+            'source' => 'full-screen',
             'message' => '  二分探索木について教えてください  ',
         ]);
 
         // Assert
-        $this->assertInstanceOf(
-            AiChatConversation::class,
-            $result['conversation'],
-        );
         $this->assertSame(
-            '二分探索木の質問',
+            '二分探索木について教えてください',
             $result['conversation']->title,
         );
-        $this->assertNull($result['failure_message']);
+        $this->assertFalse($result['conversation']->auto_title_enabled);
 
         $this->assertDatabaseHas('ai_chat_conversations', [
             'id' => $result['conversation']->id,
             'user_id' => $student->id,
-            'title' => '二分探索木の質問',
+            'title' => '二分探索木について教えてください',
+            'auto_title_enabled' => false,
         ]);
     }
 
@@ -262,5 +261,85 @@ class CreateConversationActionTest extends TestCase
             'id' => $result['conversation']->id,
             'user_id' => $student->id,
         ]);
+    }
+
+    /**
+     * フル画面以外から作成した場合は、初期タイトルを使用し、
+     * 自動タイトル生成を有効にすることを確認する。
+     */
+    public function test_conversation_created_from_another_source_uses_default_title(): void
+    {
+        // Arrange
+        $student = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $sendMessageAction = Mockery::mock(SendMessageAction::class);
+        $sendMessageAction
+            ->shouldReceive('__invoke')
+            ->once()
+            ->andReturn([]);
+
+        $geminiService = Mockery::mock(GeminiService::class);
+
+        $action = new CreateConversationAction(
+            $sendMessageAction,
+            $geminiService,
+        );
+
+        // Act
+        $result = $action($student, [
+            'message' => '二分探索木について教えてください',
+        ]);
+
+        // Assert
+        $this->assertSame('新規相談', $result['conversation']->title);
+        $this->assertTrue($result['conversation']->auto_title_enabled);
+
+        $this->assertDatabaseHas('ai_chat_conversations', [
+            'id' => $result['conversation']->id,
+            'title' => '新規相談',
+            'auto_title_enabled' => true,
+        ]);
+    }
+
+    /**
+     * フル画面の初回メッセージが30文字を超える場合、
+     * タイトルには先頭30文字だけを使用することを確認する。
+     */
+    public function test_full_screen_initial_message_title_is_limited_to_30_characters(): void
+    {
+        // Arrange
+        $student = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $message = str_repeat('あ', 35);
+
+        $sendMessageAction = Mockery::mock(SendMessageAction::class);
+        $sendMessageAction
+            ->shouldReceive('__invoke')
+            ->once()
+            ->andReturn([]);
+
+        $geminiService = Mockery::mock(GeminiService::class);
+
+        $action = new CreateConversationAction(
+            $sendMessageAction,
+            $geminiService,
+        );
+
+        // Act
+        $result = $action($student, [
+            'source' => 'full-screen',
+            'message' => $message,
+        ]);
+
+        // Assert
+        $this->assertSame(str_repeat('あ', 30), $result['conversation']->title);
+        $this->assertSame(30, mb_strlen($result['conversation']->title));
+        $this->assertFalse($result['conversation']->auto_title_enabled);
     }
 }

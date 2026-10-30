@@ -18,7 +18,6 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-3.8-flash'),
-        'timeout' => (int) env('GEMINI_TIMEOUT', 30),
     ],
 
     /*
@@ -26,12 +25,12 @@ return [
     | 会話設定
     |--------------------------------------------------------------------------
     */
-    'history_limit' => (int) env('AI_CHAT_HISTORY_LIMIT', 30),
+    'history_limit' => (int) env('AI_CHAT_HISTORY_LIMIT', 20),
 
     /*
     |--------------------------------------------------------------------------
     | 日次送信上限
     |--------------------------------------------------------------------------
     */
-    'daily_limit' => (int) env('AI_CHAT_DAILY_LIMIT', 20),
+    'daily_limit' => (int) env('AI_CHAT_DAILY_LIMIT', 50),
 ];

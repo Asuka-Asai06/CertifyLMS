@@ -109,7 +109,7 @@ class SendMessageAction
 
         $historyLimit = max(
             1,
-            (int) config('ai-chat.history_limit', 30),
+            (int) config('ai-chat.history_limit', 20),
         );
 
         /*

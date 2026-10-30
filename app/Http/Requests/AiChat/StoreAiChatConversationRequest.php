@@ -29,6 +29,7 @@ class StoreAiChatConversationRequest extends FormRequest
             'enrollment_id' => ['nullable', 'ulid'],
             'section_id' => ['nullable', 'ulid'],
             'message' => ['nullable', 'string', 'max:2000'],
+            'source' => ['sometimes', 'string', 'in:full-screen'],
         ];
     }
 

@@ -43,7 +43,6 @@ class GeminiService
             'ai-chat.gemini.model',
             'gemini-3.8-flash',
         );
-        $timeout = (int) config('ai-chat.gemini.timeout', 30);
 
         if ($apiKey === '') {
             throw new GeminiUnavailableException;
@@ -67,14 +66,14 @@ class GeminiService
 
         try {
             $response = Http::acceptJson()
-                ->withHeaders([
-                    'x-goog-api-key' => $apiKey,
-                ])
-                ->timeout($timeout)
-                ->post(
-                    self::API_BASE_URL.$model.':generateContent',
-                    $payload,
-                );
+    ->withHeaders([
+        'x-goog-api-key' => $apiKey,
+    ])
+    ->timeout(30)
+    ->post(
+        self::API_BASE_URL.$model.':generateContent',
+        $payload,
+    );
 
             $response->throw();
         } catch (ConnectionException $exception) {

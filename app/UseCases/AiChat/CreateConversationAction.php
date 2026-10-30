@@ -43,17 +43,24 @@ final class CreateConversationAction
      */
     public function __invoke(User $student, array $data): array
     {
+        $message = trim($data['message'] ?? '');
+
+        // フル画面で初回メッセージがある場合のみ、先頭30文字をタイトルにする。
+        $hasInitialTitle = ($data['source'] ?? null) === 'full-screen'
+            && $message !== '';
+
         $conversation = DB::transaction(
             fn (): AiChatConversation => $student
                 ->aiChatConversations()
                 ->create([
-                    'title' => $data['title'] ?? '新しい会話',
+                    'title' => $hasInitialTitle
+                        ? mb_substr($message, 0, 30)
+                        : '新規相談',
                     'enrollment_id' => $data['enrollment_id'] ?? null,
                     'section_id' => $data['section_id'] ?? null,
+                    'auto_title_enabled' => ! $hasInitialTitle,
                 ]),
         );
-
-        $message = trim($data['message'] ?? '');
 
         if ($message === '') {
             return [

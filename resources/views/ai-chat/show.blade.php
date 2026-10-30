@@ -21,7 +21,7 @@
             $history30days[] = $h;
         }
     }
-    $model = (string) config('ai-chat.gemini.model', 'gemini-3.8-flash');
+    $model = (string) config('ai-chat.gemini.model', 'gemini-2.5-flash');
 @endphp
 
 @section('content')
