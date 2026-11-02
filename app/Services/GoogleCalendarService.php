@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Google\Client;
 use Google\Service\Calendar;
+use GuzzleHttp\ClientInterface as GuzzleClientInterface;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
@@ -20,6 +21,15 @@ use Throwable;
  */
 final class GoogleCalendarService
 {
+    /**
+     * Google Calendar API との HTTP 通信クライアントを受け取る。
+     *
+     * @param GuzzleClientInterface|null $httpClient HTTP クライアント（テスト時の差し替え用）
+     */
+    public function __construct(
+        private readonly ?GuzzleClientInterface $httpClient = null,
+    ) {}
+
     /**
      * Google OAuth の認証 URL を生成する。
      */
@@ -120,7 +130,8 @@ final class GoogleCalendarService
             return [
                 'access_token' => $credential->access_token,
                 'refresh_token' => $credential->refresh_token,
-                'expires_at' => $credential->expires_at->timestamp,
+                'created' => now()->timestamp,
+                'expires_in' => $credential->expires_at->timestamp - now()->timestamp,
             ];
         }
 
@@ -171,6 +182,11 @@ final class GoogleCalendarService
     private function createClient(): Client
     {
         $client = new Client;
+
+        // テスト時はモック用 HTTP クライアントを使用する。
+        if ($this->httpClient !== null) {
+            $client->setHttpClient($this->httpClient);
+        }
 
         $client->setClientId((string) config('services.google.client_id'));
         $client->setClientSecret((string) config('services.google.client_secret'));
