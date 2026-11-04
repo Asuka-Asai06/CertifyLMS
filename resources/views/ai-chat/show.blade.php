@@ -119,16 +119,19 @@
                 </div>
             </header>
 
-            {{-- Messages --}}
-            <div class="flex-1 overflow-y-auto px-8 pt-6 pb-3" data-message-scroller>
-                @if ($conversation->messages->isEmpty())
-                    <div class="max-w-[760px] mx-auto text-center text-sm text-ink-500 py-12">
-                        まだメッセージはありません。下から最初の質問を送ってみよう。
-                    </div>
-                @else
-                    @include('ai-chat._partials.message-list')
-                @endif
-            </div>
+{{-- Messages --}}
+<div class="flex-1 overflow-y-auto px-8 pt-6 pb-3" data-message-scroller>
+    @include('ai-chat._partials.message-list')
+
+    @if ($conversation->messages->isEmpty())
+        <div
+            class="max-w-[760px] mx-auto text-center text-sm text-ink-500 py-12"
+            data-empty-message
+        >
+            まだメッセージはありません。下から最初の質問を送ってみよう。
+        </div>
+    @endif
+</div>
 
             {{-- Composer --}}
             <div class="px-6 py-4 backdrop-blur-sm bg-white/70 border-t border-subtle">
