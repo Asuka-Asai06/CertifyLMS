@@ -176,7 +176,18 @@ sail artisan queue:retry all
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google Calendar API の OAuth 認証に使用します。Google Cloud で OAuth クライアントを作成し、取得した値を設定してください。
 - `GOOGLE_REDIRECT_URI` — Google OAuth 認証後のコールバック URL を設定します。ローカル開発環境では `http://localhost:8000/settings/google-calendar/callback` を使用します。Google Cloud 側の承認済みリダイレクト URI にも同じ URL を登録してください。
 
-Google Calendar 連携を利用するには、Google Cloud 側で必要な Calendar API を有効にし、OAuth 同意画面と OAuth クライアントを設定する必要があります。開発環境では、使用する Google アカウントが OAuth アプリのテストユーザーとして登録されていることも確認してください。
+#### 1. Google Cloud の設定
+Google Calendar 連携を利用するには、Google Cloud Console で Google Calendar API を有効化し、OAuth 認証情報を取得する必要があります。
+1. [Google Cloud Console](https://console.cloud.google.com/) にアクセスし、プロジェクトを作成または選択します。
+2. 「API とサービス」→「ライブラリ」から `Google Calendar API` を検索し、有効化します。
+3. [Google Auth Platform](https://console.cloud.google.com/auth/overview) で OAuth 同意画面を設定します。
+   - アプリ名やユーザーサポートメールを設定します。
+   - 開発環境では、対象ユーザーを「External」に設定し、連携に使用する Google アカウントをテストユーザーに追加してください。
+4. [Google Auth Platform のクライアント](https://console.cloud.google.com/auth/clients) から OAuth クライアントを作成します。
+   - アプリケーションの種類：`ウェブ アプリケーション`
+   - 承認済みのリダイレクト URI：前述の `GOOGLE_REDIRECT_URI` と同じ URL
+
+作成後に表示されるクライアント ID とクライアント シークレットを取得・使用してください。
 
 ### Gemini 連携（AIチャット）
 
