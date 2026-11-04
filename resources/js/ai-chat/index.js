@@ -15,6 +15,8 @@ function hydrateMarkdownBubbles() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('[AI Chat] index.js loaded');
     initAiChatFullScreen();
+    console.log('[AI Chat] initAiChatFullScreen called');
     hydrateMarkdownBubbles();
 });

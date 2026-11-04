@@ -113,6 +113,9 @@ function initForm() {
         const content = textarea.value.trim();
         if (!content) return;
 
+        // 初回メッセージ送信時に空状態の案内を非表示にする
+        document.querySelector('[data-empty-message]')?.remove();
+
         submit.disabled = true;
         textarea.value = '';
         textarea.style.height = '';
@@ -144,6 +147,7 @@ function initForm() {
 function describeError(err) {
     if (err.type === 'rate-limit') return '本日の利用上限に達しました。明日 0:00 以降に再度ご利用ください。';
     if (err.type === 'validation') return '入力内容を確認してください (1-2000 文字)。';
+    if (err?.type === 'unavailable') return '現在 AI チャットを利用できません。';
     if (err.type === 'llm') {
         const upstream = err.upstreamStatus;
         if (upstream === 429) {
