@@ -7,6 +7,7 @@ use App\Http\Controllers\AiChatMessageController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\OnboardingController;
 use App\Http\Controllers\BrowseController;
+use App\Http\Controllers\CertificateDownloadController;
 use App\Http\Controllers\CertificationCatalogController;
 use App\Http\Controllers\CertificationCategoryController;
 use App\Http\Controllers\CertificationCoachAssignmentController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LearningHourTargetController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingPackController;
+use App\Http\Controllers\MeetingQuotaCheckoutController;
 use App\Http\Controllers\MeetingQuotaHistoryController;
 use App\Http\Controllers\MockExamAnswerController;
 use App\Http\Controllers\MockExamCatalogController;
@@ -47,9 +49,11 @@ use App\Http\Controllers\SectionQuestionController;
 use App\Http\Controllers\SectionQuizController;
 use App\Http\Controllers\SectionQuizResultController;
 use App\Http\Controllers\Settings\AvailabilityController as SettingsAvailabilityController;
+use App\Http\Controllers\Settings\GoogleCalendarController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SettingsDefaultEnrollmentController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeakDrillController;
 use App\Http\Controllers\WeakDrillResultController;
@@ -603,11 +607,42 @@ Route::middleware(['auth', 'role:coach'])
     });
 
 // ============================================================
+// コーチ専用ルート — Google カレンダー連携
+// ============================================================
+Route::middleware(['auth', 'role:coach'])
+    ->prefix('settings/google-calendar')
+    ->name('settings.google-calendar.')
+    ->group(function () {
+        Route::get('/connect', [GoogleCalendarController::class, 'redirect'])->name('redirect');
+        Route::get('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
+        Route::delete('/', [GoogleCalendarController::class, 'destroy'])->name('destroy');
+    });
+
+// ============================================================
 // 受講生専用ルート(受講中=in_progress のみ通過)
 // ============================================================
 Route::middleware(['auth', 'role:student', 'active-learning'])->prefix('meeting-quota')->name('meeting-quota.')->group(function () {
     // 面談回数履歴
     Route::get('history', [MeetingQuotaHistoryController::class, 'index'])->name('history');
+    // 面談パック購入画面
+    Route::get('checkout', [MeetingQuotaCheckoutController::class, 'index'])->name('checkout.select');
+    // Stripe決済開始
+    Route::post('checkout', [MeetingQuotaCheckoutController::class, 'store'])->name('checkout.create');
+    // 決済完了画面
+    Route::get('success', [MeetingQuotaCheckoutController::class, 'success'])->name('success');
+});
+
+// ============================================================
+// Stripe Webhook（Stripeからの決済通知）
+// ============================================================
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])->name('webhooks.stripe');
+
+// ============================================================
+// PDFダウンロード用ルート（認証必須）
+// ============================================================
+
+Route::middleware('auth')->group(function () {
+    Route::get('/certificates/{certificate}/download', CertificateDownloadController::class)->name('certificates.download');
 });
 
 // ============================================================

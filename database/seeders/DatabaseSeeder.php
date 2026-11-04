@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
             EnrollmentNoteSeeder::class,
             AnnouncementSeeder::class,
             AiChatSeeder::class,
+            PaymentSeeder::class,
         ]);
     }
 }

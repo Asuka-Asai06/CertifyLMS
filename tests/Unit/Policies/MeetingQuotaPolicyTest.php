@@ -28,4 +28,43 @@ class MeetingQuotaPolicyTest extends TestCase
         $this->assertTrue($policy->viewHistory($self, $self), '本人は自分の履歴を閲覧可');
         $this->assertFalse($policy->viewHistory($self, $other), '他人の履歴は閲覧不可');
     }
+
+    public function test_purchase_pack_allowed_for_student_in_progress(): void
+    {
+        // Arrange
+        $student = User::factory()->student()->inProgress()->create();
+        $policy = new MeetingQuotaPolicy;
+
+        // Act & Assert
+        $this->assertTrue(
+            $policy->purchasePack($student),
+            '受講中の受講生は追加面談パックを購入できる',
+        );
+    }
+
+    public function test_purchase_pack_denied_for_student_not_in_progress(): void
+    {
+        // Arrange
+        $student = User::factory()->student()->invited()->create();
+        $policy = new MeetingQuotaPolicy;
+
+        // Act & Assert
+        $this->assertFalse(
+            $policy->purchasePack($student),
+            '招待中の受講生は追加面談パックを購入できない',
+        );
+    }
+
+    public function test_purchase_pack_denied_for_coach_in_progress(): void
+    {
+        // Arrange
+        $coach = User::factory()->coach()->create();
+        $policy = new MeetingQuotaPolicy;
+
+        // Act & Assert
+        $this->assertFalse(
+            $policy->purchasePack($coach),
+            'コーチは購入できない',
+        );
+    }
 }

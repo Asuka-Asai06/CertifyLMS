@@ -31,6 +31,7 @@ use App\Models\SectionQuestionAnswer;
 use App\Models\SectionQuestionAttempt;
 use App\Models\User;
 use App\Policies\AiChatConversationPolicy;
+use App\Policies\CertificatePolicy;
 use App\Policies\CertificationCategoryPolicy;
 use App\Policies\CertificationPolicy;
 use App\Policies\ChapterPolicy;
@@ -103,6 +104,7 @@ class AuthServiceProvider extends ServiceProvider
         QaReply::class => QaReplyPolicy::class,
         CoachAvailability::class => CoachAvailabilityPolicy::class,
         AiChatConversation::class => AiChatConversationPolicy::class,
+        Certificate::class => CertificatePolicy::class,
     ];
 
     /**
@@ -112,6 +114,8 @@ class AuthServiceProvider extends ServiceProvider
     {
         // 面談回数履歴の閲覧は Model に直接紐づかない受講生 Ability として Gate 登録する
         Gate::define('view-meeting-quota-history', [MeetingQuotaPolicy::class, 'viewHistory']);
+        // 追加面談パックの購入は受講中の受講生のみ許可する
+        Gate::define('purchase-meeting-pack', [MeetingQuotaPolicy::class, 'purchasePack']);
 
         // 受講生視点の教材閲覧認可: 既存の admin / coach 用 PartPolicy / ChapterPolicy / SectionPolicy が
         // Model::class に auto-bind されているため、別 Gate 名で受講生用 View Policy を登録して両立させる。

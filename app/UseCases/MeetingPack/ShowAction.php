@@ -9,7 +9,7 @@ use App\Models\MeetingPack;
 /**
  * admin 用の面談パック詳細を取得するユースケース。
  *
- * 作成者・更新者を Eager Loading し、
+ * 作成者・更新者・購入履歴を Eager Loading し、
  * 詳細画面に必要な基本情報とメタデータを揃える。
  */
 final class ShowAction
@@ -19,6 +19,7 @@ final class ShowAction
         return $plan->load([
             'createdBy',
             'updatedBy',
+            'payments',
         ]);
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Meeting;
 use App\Models\User;
 use App\Services\MeetingAvailabilityService;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -121,5 +122,123 @@ class MeetingAvailabilityServiceTest extends TestCase
         // 例外が起きないことを確認
         app(MeetingAvailabilityService::class)->validateSlot($certification, Carbon::parse('2026-06-01 09:00:00'));
         $this->addToAssertionCount(1);
+    }
+
+    /**
+     * Google Calendar の予定と重なる面談枠が除外されることを確認する。
+     */
+    public function test_excludes_slots_overlapping_google_calendar_events(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+
+        $date = Carbon::parse('2026-06-01');
+        CoachAvailability::factory()
+            ->forCoach($coach)
+            ->onDay(1)
+            ->timeRange('09:00:00', '12:00:00')
+            ->create();
+
+        $busyPeriodsByCoach = [
+            (string) $coach->id => [
+                [
+                    'start' => CarbonImmutable::parse('2026-06-01 10:00:00'),
+                    'end' => CarbonImmutable::parse('2026-06-01 11:00:00'),
+                ],
+            ],
+        ];
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification(
+            $certification,
+            $date,
+            $busyPeriodsByCoach,
+        );
+
+        $times = $slots->map(
+            fn (array $slot) => $slot['slot_start']->format('H:i'),
+        )->all();
+
+        // 10:00-11:00 は Google Calendar の予定と重なるため除外される。
+        $this->assertSame(['09:00', '11:00'], $times);
+    }
+
+    /**
+     * Google Calendar の予定が面談枠の途中から始まる場合も、重なる面談枠が除外されることを確認する。
+     */
+    public function test_excludes_slots_partially_overlapping_google_calendar_events(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+
+        $date = Carbon::parse('2026-06-01');
+        CoachAvailability::factory()
+            ->forCoach($coach)
+            ->onDay(1)
+            ->timeRange('09:00:00', '12:00:00')
+            ->create();
+
+        $busyPeriodsByCoach = [
+            (string) $coach->id => [
+                [
+                    'start' => CarbonImmutable::parse('2026-06-01 10:30:00'),
+                    'end' => CarbonImmutable::parse('2026-06-01 11:30:00'),
+                ],
+            ],
+        ];
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification(
+            $certification,
+            $date,
+            $busyPeriodsByCoach,
+        );
+
+        $times = $slots->map(
+            fn (array $slot) => $slot['slot_start']->format('H:i'),
+        )->all();
+
+        // 10:00-11:00 と 11:00-12:00 の両方が予定と重なる。
+        $this->assertSame(['09:00'], $times);
+    }
+
+    /**
+     * Google Calendar の予定と重ならない面談枠は残ることを確認する。
+     */
+    public function test_keeps_slots_not_overlapping_google_calendar_events(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+
+        $date = Carbon::parse('2026-06-01');
+        CoachAvailability::factory()
+            ->forCoach($coach)
+            ->onDay(1)
+            ->timeRange('09:00:00', '12:00:00')
+            ->create();
+
+        $busyPeriodsByCoach = [
+            (string) $coach->id => [
+                [
+                    // 面談枠の終了時刻と予定の開始時刻が一致する。
+                    'start' => CarbonImmutable::parse('2026-06-01 12:00:00'),
+                    'end' => CarbonImmutable::parse('2026-06-01 13:00:00'),
+                ],
+            ],
+        ];
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification(
+            $certification,
+            $date,
+            $busyPeriodsByCoach,
+        );
+
+        $times = $slots->map(
+            fn (array $slot) => $slot['slot_start']->format('H:i'),
+        )->all();
+
+        // 12:00 からの予定は 09:00-12:00 の面談枠とは重ならない。
+        $this->assertSame(['09:00', '10:00', '11:00'], $times);
     }
 }

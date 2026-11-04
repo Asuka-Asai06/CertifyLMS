@@ -6,6 +6,7 @@ namespace Tests\Unit\Models;
 
 use App\Enums\MeetingPackStatus;
 use App\Models\MeetingPack;
+use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,6 +16,8 @@ use Tests\TestCase;
  * 2 リレーション (createdBy / updatedBy) + 2 scope (published / ordered) +
  * 4 cast (status enum / meeting_count int / price int / sort_order int) を網羅する。
  * 追加面談 SKU マスタ。
+ *
+ * 決済連携用paymentsリレーションテストを追加。
  */
 class MeetingPackTest extends TestCase
 {
@@ -86,5 +89,22 @@ class MeetingPackTest extends TestCase
         $this->assertSame(5, $fresh->meeting_count);
         $this->assertIsInt($fresh->price);
         $this->assertSame(15000, $fresh->price);
+    }
+
+    public function test_payments_relation_returns_payments_for_the_pack(): void
+    {
+        // Arrange
+        $pack = MeetingPack::factory()->published()->create();
+
+        $payment = Payment::factory()->create([
+            'meeting_pack_id' => $pack->id,
+        ]);
+
+        // Act
+        $payments = $pack->payments;
+
+        // Assert
+        $this->assertCount(1, $payments);
+        $this->assertTrue($payments->first()->is($payment));
     }
 }

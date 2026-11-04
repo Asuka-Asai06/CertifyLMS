@@ -13,6 +13,7 @@ use App\Models\Meeting;
 use App\Models\User;
 use App\Notifications\MeetingReservedNotification;
 use App\Services\CoachMeetingLoadService;
+use App\Services\GoogleCalendarService;
 use App\Services\MeetingAvailabilityService;
 use App\Services\MeetingQuotaService;
 use App\UseCases\MeetingQuota\ConsumeQuotaAction;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 final class StoreAction
 {
@@ -28,6 +31,7 @@ final class StoreAction
         private readonly CoachMeetingLoadService $coachLoadService,
         private readonly MeetingQuotaService $quotaService,
         private readonly ConsumeQuotaAction $consumeAction,
+        private readonly GoogleCalendarService $googleCalendarService,
     ) {}
 
     /**
@@ -43,27 +47,33 @@ final class StoreAction
         $scheduledAt = Carbon::parse($data['scheduled_at']);
         $topic = $data['topic'];
         $student = $enrollment->user;
+        $certification = $enrollment->certification;
 
-        return DB::transaction(function () use (
+        $busyPeriodsByCoach = $this->availabilityService
+            ->fetchBusyPeriodsByCoach($certification, $scheduledAt);
+
+        $meeting = DB::transaction(function () use (
             $enrollment,
             $student,
+            $certification,
             $scheduledAt,
             $topic,
+            $busyPeriodsByCoach,
         ): Meeting {
             if ($this->quotaService->remaining($student) < 1) {
                 throw new InsufficientMeetingQuotaException;
             }
 
-            $certification = $enrollment->certification;
-
             $this->availabilityService->validateSlot(
                 $certification,
                 $scheduledAt,
+                $busyPeriodsByCoach,
             );
 
             $candidates = $this->availableCoaches(
                 $certification,
                 $scheduledAt,
+                $busyPeriodsByCoach,
             );
 
             if ($candidates->isEmpty()) {
@@ -83,7 +93,6 @@ final class StoreAction
                     'meeting_url_snapshot' => $coach->meeting_url,
                 ]);
             } catch (UniqueConstraintViolationException $e) {
-                // 同時予約による UNIQUE 制約違反を、予約可能なコーチがいない状態として扱う。
                 throw new MeetingNoAvailableCoachException($e);
             }
 
@@ -103,23 +112,51 @@ final class StoreAction
 
             return $meeting;
         });
+
+        $credential = $meeting->coach->googleCredential;
+
+        if ($credential !== null) {
+            try {
+                $eventId = $this->googleCalendarService->createEvent(
+                    $credential,
+                    $meeting,
+                );
+
+                $meeting->update([
+                    'google_calendar_event_id' => $eventId,
+                ]);
+            } catch (Throwable $exception) {
+                Log::warning('Google Calendar event creation failed during meeting reservation.', [
+                    'meeting_id' => $meeting->id,
+                    'coach_id' => $meeting->coach_id,
+                    'exception' => $exception::class,
+                ]);
+            }
+        }
+
+        return $meeting;
     }
 
     /**
      * 指定された資格の担当コーチから、予約可能なコーチを取得する。
      *
-     * 空き時間枠が有効で、同じ日時に reserved / completed の面談が
-     * 存在しないコーチのみを返す。
+     * 有効な面談枠があり、同じ日時に reserved / completed の面談がなく、
+     * Google Calendar の予定とも重複しないコーチのみを返す。
+     *
+     * @param array<string, list<array{start: CarbonImmutable, end: CarbonImmutable}>> $busyPeriodsByCoach
      *
      * @return Collection<int, User>
      */
     private function availableCoaches(
         Certification $certification,
         Carbon $scheduledAt,
+        array $busyPeriodsByCoach,
     ): Collection {
         $time = $scheduledAt->format('H:i:s');
+        $scheduledEnd = $scheduledAt->copy()->addHour();
 
-        return $certification->coaches()
+        $candidates = $certification->coaches()
+            ->with('googleCredential')
             ->whereHas('coachAvailabilities', function ($query) use ($scheduledAt, $time): void {
                 $query->where('day_of_week', $scheduledAt->dayOfWeek)
                     ->where('is_active', true)
@@ -134,5 +171,24 @@ final class StoreAction
                     ]);
             })
             ->get();
+
+        return $candidates
+            ->reject(function (User $coach) use (
+                $scheduledAt,
+                $scheduledEnd,
+                $busyPeriodsByCoach,
+            ): bool {
+                if ($coach->googleCredential === null) {
+                    return false;
+                }
+
+                $busyPeriods = $busyPeriodsByCoach[(string) $coach->id] ?? [];
+
+                return collect($busyPeriods)->contains(
+                    fn (array $busy): bool => $busy['start']->lt($scheduledEnd)
+                        && $busy['end']->gt($scheduledAt),
+                );
+            })
+            ->values();
     }
 }
