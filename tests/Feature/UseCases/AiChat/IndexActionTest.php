@@ -138,4 +138,44 @@ class IndexActionTest extends TestCase
         // Assert
         $this->assertCount(30, $result['conversations']);
     }
+
+    /**
+     * 会話ごとのメッセージ件数が取得されることを確認する。
+     */
+    public function test_message_count_is_returned_for_each_conversation(): void
+    {
+        // Arrange
+        $student = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $conversation = AiChatConversation::factory()
+            ->for($student, 'user')
+            ->create();
+
+        $conversation->messages()->createMany([
+            [
+                'role' => 'user',
+                'content' => '質問1',
+                'status' => 'completed',
+            ],
+            [
+                'role' => 'assistant',
+                'content' => '回答1',
+                'status' => 'completed',
+            ],
+        ]);
+
+        $action = new IndexAction;
+
+        // Act
+        $result = $action($student);
+
+        // Assert
+        $this->assertSame(
+            2,
+            $result['conversations']->firstWhere('id', $conversation->id)->messages_count,
+        );
+    }
 }

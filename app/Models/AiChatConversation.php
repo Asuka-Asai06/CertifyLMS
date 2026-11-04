@@ -21,6 +21,7 @@ class AiChatConversation extends Model
     protected $fillable = [
         'user_id',
         'enrollment_id',
+        'chapter_id',
         'section_id',
         'title',
         'last_message_at',
@@ -60,6 +61,16 @@ class AiChatConversation extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    /**
+     * この会話の起点となったChapter。
+     *
+     * @return BelongsTo<Chapter, $this>
+     */
+    public function chapter(): BelongsTo
+    {
+        return $this->belongsTo(Chapter::class);
     }
 
     /**

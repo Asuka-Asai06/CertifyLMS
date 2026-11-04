@@ -8,6 +8,11 @@ use App\Exceptions\AiChat\AiChatDailyLimitExceededException;
 use App\Exceptions\AiChat\GeminiApiException;
 use App\Exceptions\AiChat\GeminiUnavailableException;
 use App\Models\AiChatConversation;
+use App\Models\Certification;
+use App\Models\Chapter;
+use App\Models\Enrollment;
+use App\Models\Part;
+use App\Models\Section;
 use App\Models\User;
 use App\Services\GeminiService;
 use App\UseCases\AiChat\CreateConversationAction;
@@ -341,5 +346,98 @@ class CreateConversationActionTest extends TestCase
         $this->assertSame(str_repeat('あ', 30), $result['conversation']->title);
         $this->assertSame(30, mb_strlen($result['conversation']->title));
         $this->assertFalse($result['conversation']->auto_title_enabled);
+    }
+
+    /**
+     * 会話作成時に学習コンテキストのIDが保存されることを確認する。
+     */
+    public function test_conversation_is_created_with_learning_context_ids(): void
+    {
+        // Arrange
+        $student = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $certification = Certification::factory()->create();
+
+        $enrollment = Enrollment::factory()
+            ->for($student)
+            ->for($certification)
+            ->learning()
+            ->create();
+
+        $part = Part::factory()
+            ->for($certification)
+            ->create();
+
+        $chapter = Chapter::factory()
+            ->for($part)
+            ->create();
+
+        $section = Section::factory()
+            ->for($chapter)
+            ->create();
+
+        $sendMessageAction = Mockery::mock(SendMessageAction::class);
+        $sendMessageAction->shouldNotReceive('__invoke');
+
+        $geminiService = Mockery::mock(GeminiService::class);
+
+        $action = new CreateConversationAction(
+            $sendMessageAction,
+            $geminiService,
+        );
+
+        // Act
+        $result = $action($student, [
+            'enrollment_id' => $enrollment->id,
+            'chapter_id' => $chapter->id,
+            'section_id' => $section->id,
+            'message' => '',
+        ]);
+
+        // Assert
+        $this->assertDatabaseHas('ai_chat_conversations', [
+            'id' => $result['conversation']->id,
+            'user_id' => $student->id,
+            'enrollment_id' => $enrollment->id,
+            'chapter_id' => $chapter->id,
+            'section_id' => $section->id,
+        ]);
+
+        $this->assertNull($result['failure_message']);
+    }
+
+    /**
+     * 初回質問が空白だけの場合、会話のみ作成されることを確認する。
+     */
+    public function test_conversation_is_created_without_initial_message_when_message_contains_only_whitespace(): void
+    {
+        // Arrange
+        $student = User::factory()
+            ->student()
+            ->inProgress()
+            ->create();
+
+        $sendMessageAction = Mockery::mock(SendMessageAction::class);
+        $sendMessageAction->shouldNotReceive('__invoke');
+
+        $geminiService = Mockery::mock(GeminiService::class);
+
+        $action = new CreateConversationAction(
+            $sendMessageAction,
+            $geminiService,
+        );
+
+        // Act
+        $result = $action($student, [
+            'message' => '   ',
+        ]);
+
+        // Assert
+        $this->assertSame('新規相談', $result['conversation']->title);
+        $this->assertTrue($result['conversation']->auto_title_enabled);
+        $this->assertNull($result['failure_message']);
     }
 }

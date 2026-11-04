@@ -25,6 +25,10 @@ return new class extends Migration
                 ->nullable()
                 ->constrained('enrollments')
                 ->restrictOnDelete();
+            $table->foreignUlid('chapter_id')
+                ->nullable()
+                ->constrained('chapters')
+                ->restrictOnDelete();
             $table->foreignUlid('section_id')
                 ->nullable()
                 ->constrained('sections')
@@ -36,6 +40,7 @@ return new class extends Migration
 
             $table->index(['user_id', 'last_message_at']);
             $table->index(['enrollment_id', 'last_message_at']);
+            $table->index('chapter_id');
             $table->index('section_id');
         });
     }

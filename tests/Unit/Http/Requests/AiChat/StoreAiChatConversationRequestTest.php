@@ -13,8 +13,9 @@ use Tests\TestCase;
 /**
  * StoreAiChatConversationRequest の rules() を検証する Unit テスト。
  *
+ * enrollment_id / chapter_id / section_id は任意の ULID 形式であること、
  * 初回メッセージは任意とし、指定時は文字列かつ2000文字以内であること、
- * enrollment_id / section_id は任意の ULID 形式であることを検証する。
+ * source は full-screen または widget のいずれかであることを検証する。
  */
 class StoreAiChatConversationRequestTest extends TestCase
 {
@@ -42,6 +43,7 @@ class StoreAiChatConversationRequestTest extends TestCase
     {
         return [
             'enrollment_id' => null,
+            'chapter_id' => null,
             'section_id' => null,
             'message' => null,
         ];
@@ -79,6 +81,26 @@ class StoreAiChatConversationRequestTest extends TestCase
         $validator = $this->validateData($data);
 
         $this->assertTrue($validator->errors()->has('enrollment_id'));
+    }
+
+    public function test_valid_ulid_chapter_id_passes_validation(): void
+    {
+        $data = $this->validData();
+        $data['chapter_id'] = (string) Str::ulid();
+
+        $validator = $this->validateData($data);
+
+        $this->assertFalse($validator->fails());
+    }
+
+    public function test_invalid_chapter_id_fails_validation(): void
+    {
+        $data = $this->validData();
+        $data['chapter_id'] = 'invalid-ulid';
+
+        $validator = $this->validateData($data);
+
+        $this->assertTrue($validator->errors()->has('chapter_id'));
     }
 
     public function test_valid_ulid_section_id_passes_validation(): void
@@ -159,5 +181,45 @@ class StoreAiChatConversationRequestTest extends TestCase
         $validator = $this->validateData($data);
 
         $this->assertTrue($validator->errors()->has('message'));
+    }
+
+    public function test_full_screen_source_passes_validation(): void
+    {
+        $data = $this->validData();
+        $data['source'] = 'full-screen';
+
+        $validator = $this->validateData($data);
+
+        $this->assertFalse($validator->fails());
+    }
+
+    public function test_widget_source_passes_validation(): void
+    {
+        $data = $this->validData();
+        $data['source'] = 'widget';
+
+        $validator = $this->validateData($data);
+
+        $this->assertFalse($validator->fails());
+    }
+
+    public function test_invalid_source_fails_validation(): void
+    {
+        $data = $this->validData();
+        $data['source'] = 'invalid-source';
+
+        $validator = $this->validateData($data);
+
+        $this->assertTrue($validator->errors()->has('source'));
+    }
+
+    public function test_source_must_be_a_string(): void
+    {
+        $data = $this->validData();
+        $data['source'] = ['widget'];
+
+        $validator = $this->validateData($data);
+
+        $this->assertTrue($validator->errors()->has('source'));
     }
 }

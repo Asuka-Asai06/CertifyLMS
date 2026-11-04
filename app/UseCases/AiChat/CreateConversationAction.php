@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\DB;
 /**
  * AI チャット会話を作成する Action。
  *
- * 会話に受講登録・Section のコンテキストを設定する。
  * 初回質問が指定されている場合は、SendMessageAction で送信する。
  * 質問の送信に失敗した場合も、作成済みの会話を返す。
  */
@@ -32,8 +31,10 @@ final class CreateConversationAction
      * @param array{
      *     title?: string,
      *     enrollment_id?: string|null,
+     *     chapter_id?: string|null,
      *     section_id?: string|null,
-     *     message?: string|null
+     *     message?: string|null,
+     *     source?: string
      * } $data
      *
      * @return array{
@@ -57,6 +58,7 @@ final class CreateConversationAction
                         ? mb_substr($message, 0, 30)
                         : '新規相談',
                     'enrollment_id' => $data['enrollment_id'] ?? null,
+                    'chapter_id' => $data['chapter_id'] ?? null,
                     'section_id' => $data['section_id'] ?? null,
                     'auto_title_enabled' => ! $hasInitialTitle,
                 ]),

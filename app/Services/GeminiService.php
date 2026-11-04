@@ -39,6 +39,7 @@ class GeminiService
         ?string $systemInstruction = null,
     ): array {
         $apiKey = (string) config('ai-chat.gemini.api_key', '');
+
         $model = (string) config(
             'ai-chat.gemini.model',
             'gemini-3.8-flash',
@@ -66,14 +67,14 @@ class GeminiService
 
         try {
             $response = Http::acceptJson()
-    ->withHeaders([
-        'x-goog-api-key' => $apiKey,
-    ])
-    ->timeout(30)
-    ->post(
-        self::API_BASE_URL.$model.':generateContent',
-        $payload,
-    );
+                ->withHeaders([
+                    'x-goog-api-key' => $apiKey,
+                ])
+                ->timeout(30)
+                ->post(
+                    self::API_BASE_URL.$model.':generateContent',
+                    $payload,
+                );
 
             $response->throw();
         } catch (ConnectionException $exception) {

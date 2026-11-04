@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http\AiChat;
 
+use App\Enums\AiChatMessageRole;
+use App\Enums\AiChatMessageStatus;
 use App\Models\AiChatConversation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,12 +25,16 @@ class AiChatConversationControllerTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * 会話一覧画面が表示されることを確認する。
+     * 会話一覧画面に会話一覧とデフォルト受講登録が渡されることを確認する。
      */
     public function test_index_returns_conversation_list_for_student(): void
     {
         // Arrange
         $student = User::factory()->student()->inProgress()->create();
+
+        $conversation = AiChatConversation::factory()
+            ->for($student, 'user')
+            ->create();
 
         // Act
         $response = $this->actingAs($student)
@@ -37,6 +43,12 @@ class AiChatConversationControllerTest extends TestCase
         // Assert
         $response->assertOk();
         $response->assertViewIs('ai-chat.empty-state');
+
+        $response->assertViewHas('conversations', function ($conversations) use ($conversation) {
+            return $conversations->contains('id', $conversation->id);
+        });
+
+        $response->assertViewHas('defaultEnrollment', null);
     }
 
     /**
@@ -64,7 +76,7 @@ class AiChatConversationControllerTest extends TestCase
     }
 
     /**
-     * 会話詳細の JSON レスポンスにメッセージ一覧が含まれることを確認する。
+     * 会話詳細の JSON レスポンスにメッセージの内容が含まれることを確認する。
      */
     public function test_show_returns_messages_as_json_for_owner(): void
     {
@@ -75,14 +87,38 @@ class AiChatConversationControllerTest extends TestCase
             ->for($student, 'user')
             ->create();
 
+        $conversation->messages()->create([
+            'role' => AiChatMessageRole::User->value,
+            'content' => '二分探索木について教えてください。',
+            'status' => AiChatMessageStatus::Completed->value,
+        ]);
+
+        $conversation->messages()->create([
+            'role' => AiChatMessageRole::Assistant->value,
+            'content' => '二分探索木は、各ノードが最大2つの子を持つ木構造です。',
+            'status' => AiChatMessageStatus::Completed->value,
+        ]);
+
         // Act
         $response = $this->actingAs($student)
             ->getJson(route('ai-chat.conversations.show', $conversation));
 
         // Assert
         $response->assertOk();
-        $response->assertJsonStructure([
-            'messages',
+
+        $response->assertExactJson([
+            'messages' => [
+                [
+                    'role' => AiChatMessageRole::User->value,
+                    'content' => '二分探索木について教えてください。',
+                    'status' => AiChatMessageStatus::Completed->value,
+                ],
+                [
+                    'role' => AiChatMessageRole::Assistant->value,
+                    'content' => '二分探索木は、各ノードが最大2つの子を持つ木構造です。',
+                    'status' => AiChatMessageStatus::Completed->value,
+                ],
+            ],
         ]);
     }
 
@@ -303,6 +339,65 @@ class AiChatConversationControllerTest extends TestCase
         $this->assertDatabaseHas('ai_chat_conversations', [
             'id' => $conversation->id,
             'title' => '元のタイトル',
+        ]);
+    }
+
+    /**
+     * 未認証ユーザーが会話を作成できないことを確認する。
+     */
+    public function test_unauthenticated_user_cannot_create_conversation(): void
+    {
+        // Act & Assert
+        $this->post(route('ai-chat.conversations.store'), [
+            'message' => null,
+        ])->assertRedirect(route('login'));
+
+        $this->assertDatabaseCount('ai_chat_conversations', 0);
+    }
+
+    /**
+     * 未認証ユーザーが会話タイトルを変更できないことを確認する。
+     */
+    public function test_unauthenticated_user_cannot_update_conversation(): void
+    {
+        // Arrange
+        $student = User::factory()->student()->inProgress()->create();
+
+        $conversation = AiChatConversation::factory()
+            ->for($student, 'user')
+            ->create([
+                'title' => '変更前のタイトル',
+            ]);
+
+        // Act & Assert
+        $this->patch(route('ai-chat.conversations.update', $conversation), [
+            'title' => '変更後のタイトル',
+        ])->assertRedirect(route('login'));
+
+        $this->assertDatabaseHas('ai_chat_conversations', [
+            'id' => $conversation->id,
+            'title' => '変更前のタイトル',
+        ]);
+    }
+
+    /**
+     * 未認証ユーザーが会話を削除できないことを確認する。
+     */
+    public function test_unauthenticated_user_cannot_delete_conversation(): void
+    {
+        // Arrange
+        $student = User::factory()->student()->inProgress()->create();
+
+        $conversation = AiChatConversation::factory()
+            ->for($student, 'user')
+            ->create();
+
+        // Act & Assert
+        $this->delete(route('ai-chat.conversations.destroy', $conversation))
+            ->assertRedirect(route('login'));
+
+        $this->assertDatabaseHas('ai_chat_conversations', [
+            'id' => $conversation->id,
         ]);
     }
 }

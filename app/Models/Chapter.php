@@ -55,6 +55,11 @@ class Chapter extends Model
         return $this->hasMany(Section::class);
     }
 
+    public function aiChatConversations(): HasMany
+    {
+        return $this->hasMany(AiChatConversation::class);
+    }
+
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', ContentStatus::Published->value)

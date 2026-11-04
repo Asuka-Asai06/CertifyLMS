@@ -27,9 +27,10 @@ class StoreAiChatConversationRequest extends FormRequest
     {
         return [
             'enrollment_id' => ['nullable', 'ulid'],
+            'chapter_id' => ['nullable', 'ulid'],
             'section_id' => ['nullable', 'ulid'],
             'message' => ['nullable', 'string', 'max:2000'],
-            'source' => ['sometimes', 'string', 'in:full-screen'],
+            'source' => ['sometimes', 'string', 'in:full-screen,widget'],
         ];
     }
 
@@ -40,6 +41,7 @@ class StoreAiChatConversationRequest extends FormRequest
     {
         return [
             'enrollment_id' => '受講登録',
+            'chapter_id' => '教材チャプター',
             'section_id' => '教材セクション',
             'message' => 'メッセージ',
         ];
