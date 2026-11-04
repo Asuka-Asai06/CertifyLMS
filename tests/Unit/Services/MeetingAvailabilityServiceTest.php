@@ -7,15 +7,26 @@ namespace Tests\Unit\Services;
 use App\Exceptions\Mentoring\MeetingOutOfAvailabilityException;
 use App\Models\Certification;
 use App\Models\CoachAvailability;
+use App\Models\GoogleCalendarCredential;
 use App\Models\Meeting;
 use App\Models\User;
+use App\Services\GoogleCalendarService;
 use App\Services\MeetingAvailabilityService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
+/**
+ * MeetingAvailabilityService の空き枠管理をテストする。
+ *
+ * @group external-api
+ */
 class MeetingAvailabilityServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,6 +39,20 @@ class MeetingAvailabilityServiceTest extends TestCase
             'assigned_at' => now(),
             'unassigned_at' => null,
         ]);
+    }
+
+    /**
+     * Guzzle MockHandler を使用した MeetingAvailabilityService を生成する。
+     */
+    private function createService(MockHandler $mockHandler): MeetingAvailabilityService
+    {
+        $httpClient = new GuzzleClient([
+            'handler' => HandlerStack::create($mockHandler),
+        ]);
+
+        $googleCalendarService = new GoogleCalendarService($httpClient);
+
+        return new MeetingAvailabilityService($googleCalendarService);
     }
 
     public function test_returns_60min_slots_for_active_availability(): void
@@ -240,5 +265,113 @@ class MeetingAvailabilityServiceTest extends TestCase
 
         // 12:00 からの予定は 09:00-12:00 の面談枠とは重ならない。
         $this->assertSame(['09:00', '10:00', '11:00'], $times);
+    }
+
+    /**
+     * Google Calendar の予定取得に成功した場合、予定と重なる面談枠が除外されることを確認する。
+     */
+    public function test_excludes_slots_overlapping_google_calendar_events_fetched_from_api(): void
+    {
+        // Arrange
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $coach->id,
+            'calendar_id' => 'primary',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $date = Carbon::parse('2026-06-01');
+
+        CoachAvailability::factory()
+            ->forCoach($coach)
+            ->onDay(1)
+            ->timeRange('09:00:00', '12:00:00')
+            ->create();
+
+        $mockHandler = new MockHandler([
+            new Response(
+                200,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'calendars' => [
+                        'primary' => [
+                            'busy' => [
+                                [
+                                    'start' => '2026-06-01T10:00:00+09:00',
+                                    'end' => '2026-06-01T11:00:00+09:00',
+                                ],
+                            ],
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $service = $this->createService($mockHandler);
+
+        // Act
+        $slots = $service->slotsForCertification($certification, $date);
+
+        // Assert
+        $times = $slots->map(
+            fn (array $slot) => $slot['slot_start']->format('H:i'),
+        )->all();
+
+        $this->assertSame(['09:00', '11:00'], $times);
+        $this->assertSame(0, $mockHandler->count());
+    }
+
+    /**
+     * Google Calendar API の取得に失敗しても、面談可能枠を予約候補として返すことを確認する。
+     */
+    public function test_keeps_available_slots_when_google_calendar_api_fails(): void
+    {
+        // Arrange
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $coach->id,
+            'calendar_id' => 'primary',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $date = Carbon::parse('2026-06-01');
+
+        CoachAvailability::factory()
+            ->forCoach($coach)
+            ->onDay(1)
+            ->timeRange('09:00:00', '12:00:00')
+            ->create();
+
+        $mockHandler = new MockHandler([
+            new Response(
+                500,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'error' => [
+                        'message' => 'Internal Server Error',
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $service = $this->createService($mockHandler);
+
+        // Act
+        $slots = $service->slotsForCertification($certification, $date);
+
+        // Assert
+        $times = $slots->map(
+            fn (array $slot) => $slot['slot_start']->format('H:i'),
+        )->all();
+
+        // API エラー時は予定なしとして扱い、通常どおり予約候補を返す。
+        $this->assertSame(['09:00', '10:00', '11:00'], $times);
+        $this->assertSame(0, $mockHandler->count());
     }
 }

@@ -80,8 +80,7 @@ class GoogleCalendarController extends Controller
                 'exception' => $exception::class,
             ]);
 
-            return redirect()->to($settingsUrl)
-                ->with('error', 'Google カレンダーとの連携に失敗しました。もう一度お試しください。');
+            return redirect()->to($settingsUrl);
         }
 
         return redirect()->to($settingsUrl)

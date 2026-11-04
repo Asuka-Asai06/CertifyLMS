@@ -18,8 +18,9 @@ use Tests\TestCase;
 
 /**
  * GoogleCalendarService のアクセストークン管理をテストする。
- *
  * Guzzle MockHandler を使用し、Google API への実際の通信を行わずに検証する。
+ *
+ * @group external-api
  */
 class GoogleCalendarServiceTest extends TestCase
 {

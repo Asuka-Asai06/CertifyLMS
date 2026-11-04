@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature\UseCases\MeetingQuota;
 
+use App\Enums\PaymentStatus;
 use App\Models\MeetingPack;
 use App\Models\User;
 use App\UseCases\MeetingQuota\CreateCheckoutSessionAction;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use RuntimeException;
+use Stripe\ApiRequestor;
+use Stripe\Exception\ApiErrorException;
+use Stripe\HttpClient\ClientInterface;
 use Tests\TestCase;
 
 /**
@@ -21,6 +26,16 @@ use Tests\TestCase;
 class CreateCheckoutSessionActionTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * テスト終了後に Stripe HTTP クライアントのモックを解除する。
+     */
+    protected function tearDown(): void
+    {
+        ApiRequestor::setHttpClient(null);
+
+        parent::tearDown();
+    }
 
     /**
      * Secret Key が未設定の場合は例外を投げる。
@@ -104,5 +119,166 @@ class CreateCheckoutSessionActionTest extends TestCase
         }
 
         $this->assertDatabaseCount('payments', 0);
+    }
+
+    /**
+     * Checkout Session を作成し、Payment に Session ID を保存する。
+     *
+     * @group external-api
+     */
+    public function test_creates_checkout_session_and_saves_session_id(): void
+    {
+        // Arrange
+        config(['services.stripe.secret' => 'sk_test_dummy']);
+
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->student()->create();
+
+        $pack = MeetingPack::factory()->published()->create([
+            'created_by_user_id' => $admin->id,
+            'updated_by_user_id' => $admin->id,
+            'name' => 'テスト面談パック',
+            'meeting_count' => 5,
+            'price' => 5000,
+        ]);
+
+        $this->mockStripeResponse([
+            'id' => 'cs_test_123',
+            'object' => 'checkout.session',
+            'url' => 'https://checkout.stripe.com/c/pay/cs_test_123',
+        ]);
+
+        // Act
+        $checkoutUrl = app(CreateCheckoutSessionAction::class)(
+            $user,
+            $pack->id,
+        );
+
+        // Assert
+        $this->assertSame(
+            'https://checkout.stripe.com/c/pay/cs_test_123',
+            $checkoutUrl,
+        );
+
+        $this->assertDatabaseHas('payments', [
+            'user_id' => $user->id,
+            'meeting_pack_id' => $pack->id,
+            'meeting_pack_name' => $pack->name,
+            'quantity' => 5,
+            'amount' => 5000,
+            'status' => PaymentStatus::Pending->value,
+            'stripe_checkout_session_id' => 'cs_test_123',
+        ]);
+    }
+
+    /**
+     * Stripe API エラー発生時に Payment を失敗状態にする。
+     *
+     * @group external-api
+     */
+    public function test_marks_payment_as_failed_when_stripe_api_returns_error(): void
+    {
+        // Arrange
+        config(['services.stripe.secret' => 'sk_test_dummy']);
+
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->student()->create();
+
+        $pack = MeetingPack::factory()->published()->create([
+            'created_by_user_id' => $admin->id,
+            'updated_by_user_id' => $admin->id,
+        ]);
+
+        $this->mockStripeResponse([
+            'error' => [
+                'type' => 'invalid_request_error',
+                'message' => 'テスト用のStripe APIエラー',
+            ],
+        ], 400);
+
+        // Act & Assert
+        try {
+            app(CreateCheckoutSessionAction::class)(
+                $user,
+                $pack->id,
+            );
+
+            $this->fail('ApiErrorException が発生することを期待しました。');
+        } catch (ApiErrorException) {
+            // Stripe API エラーが呼び出し元に再送出される。
+        }
+
+        $this->assertDatabaseHas('payments', [
+            'user_id' => $user->id,
+            'meeting_pack_id' => $pack->id,
+            'status' => PaymentStatus::Failed->value,
+        ]);
+    }
+
+    /**
+     * Checkout URL が取得できない場合に Payment を失敗状態にする。
+     *
+     * @group external-api
+     */
+    public function test_marks_payment_as_failed_when_checkout_url_is_empty(): void
+    {
+        // Arrange
+        config(['services.stripe.secret' => 'sk_test_dummy']);
+
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->student()->create();
+
+        $pack = MeetingPack::factory()->published()->create([
+            'created_by_user_id' => $admin->id,
+            'updated_by_user_id' => $admin->id,
+        ]);
+
+        $this->mockStripeResponse([
+            'id' => 'cs_test_123',
+            'object' => 'checkout.session',
+            'url' => null,
+        ]);
+
+        // Act & Assert
+        try {
+            app(CreateCheckoutSessionAction::class)(
+                $user,
+                $pack->id,
+            );
+
+            $this->fail('RuntimeException が発生することを期待しました。');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Stripe Checkout URL を取得できませんでした。',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertDatabaseHas('payments', [
+            'user_id' => $user->id,
+            'meeting_pack_id' => $pack->id,
+            'status' => PaymentStatus::Failed->value,
+            'stripe_checkout_session_id' => null,
+        ]);
+    }
+
+    /**
+     * Stripe API のレスポンスをモックする。
+     *
+     * @param array<string, mixed> $response
+     */
+    private function mockStripeResponse(array $response, int $statusCode = 200): void
+    {
+        $client = Mockery::mock(ClientInterface::class);
+
+        $client->shouldReceive('request')
+            ->once()
+            ->andReturn([
+                json_encode($response, JSON_THROW_ON_ERROR),
+                $statusCode,
+                [],
+            ]);
+
+        ApiRequestor::setHttpClient($client);
     }
 }

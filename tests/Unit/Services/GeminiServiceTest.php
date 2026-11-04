@@ -13,10 +13,12 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * GeminiService のテスト。
+ * GeminiService の外部 API 連携テスト。
  *
  * Gemini API へのリクエスト、回答の取得、
- * API キー未設定時や回答取得失敗時の挙動を確認する。
+ * API キー未設定時や API 通信・応答取得失敗時の挙動を確認する。
+ *
+ * @group external-api
  */
 class GeminiServiceTest extends TestCase
 {
@@ -29,7 +31,6 @@ class GeminiServiceTest extends TestCase
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
-            'ai-chat.gemini.timeout' => 30,
         ]);
 
         Http::fake([
@@ -155,8 +156,13 @@ class GeminiServiceTest extends TestCase
         ]);
     }
 
+    /**
+     * Gemini API が HTTP エラーを返した場合、
+     * GeminiApiException に変換されることを確認する。
+     */
     public function test_generate_throws_api_exception_when_api_returns_http_error(): void
     {
+        // Arrange
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
@@ -170,6 +176,7 @@ class GeminiServiceTest extends TestCase
             ], 500),
         ]);
 
+        // Act / Assert
         try {
             app(GeminiService::class)->generate([
                 [
@@ -185,10 +192,12 @@ class GeminiServiceTest extends TestCase
     }
 
     /**
-     * 通信に失敗した場合、GeminiApiException に変換されることを確認する。
+     * Gemini API との通信に失敗した場合、
+     * GeminiApiException に変換されることを確認する。
      */
     public function test_generate_throws_api_exception_when_connection_fails(): void
     {
+        // Arrange
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
@@ -198,6 +207,7 @@ class GeminiServiceTest extends TestCase
             throw new ConnectionException('Connection timed out.');
         });
 
+        // Act / Assert
         try {
             app(GeminiService::class)->generate([
                 [
@@ -217,10 +227,11 @@ class GeminiServiceTest extends TestCase
     }
 
     /**
-     * Gemini API に正しいURLとリクエスト内容が送信されることを確認する。
+     * Gemini API に正しい URL とリクエスト内容が送信されることを確認する。
      */
     public function test_generate_sends_expected_request_to_gemini_api(): void
     {
+        // Arrange
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
@@ -247,8 +258,10 @@ class GeminiServiceTest extends TestCase
             ],
         ];
 
+        // Act
         app(GeminiService::class)->generate($contents);
 
+        // Assert
         Http::assertSent(function (Request $request) use ($contents): bool {
             return $request->url()
                     === 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
@@ -258,10 +271,12 @@ class GeminiServiceTest extends TestCase
     }
 
     /**
-     * API応答にトークン使用量が含まれない場合、null が返ることを確認する。
+     * システム指示が指定された場合、
+     * Gemini API へのリクエストに正しい形式で含まれることを確認する。
      */
-    public function test_generate_returns_null_tokens_when_usage_metadata_is_missing(): void
+    public function test_generate_sends_system_instruction_to_gemini_api(): void
     {
+        // Arrange
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
@@ -281,6 +296,64 @@ class GeminiServiceTest extends TestCase
             ], 200),
         ]);
 
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [['text' => 'テスト質問']],
+            ],
+        ];
+
+        $systemInstruction = 'あなたは親切な学習アシスタントです。';
+
+        // Act
+        app(GeminiService::class)->generate(
+            $contents,
+            $systemInstruction,
+        );
+
+        // Assert
+        Http::assertSent(
+            function (Request $request) use (
+                $contents,
+                $systemInstruction,
+            ): bool {
+                return $request['contents'] === $contents
+                    && $request['systemInstruction'] === [
+                        'parts' => [
+                            ['text' => $systemInstruction],
+                        ],
+                    ];
+            },
+        );
+    }
+
+    /**
+     * API 応答にトークン使用量が含まれない場合、
+     * トークン使用量が null で返ることを確認する。
+     */
+    public function test_generate_returns_null_tokens_when_usage_metadata_is_missing(): void
+    {
+        // Arrange
+        config([
+            'ai-chat.gemini.api_key' => 'test-api-key',
+            'ai-chat.gemini.model' => 'gemini-3.8-flash',
+        ]);
+
+        Http::fake([
+            '*' => Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                ['text' => 'テスト回答'],
+                            ],
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        // Act
         $result = app(GeminiService::class)->generate([
             [
                 'role' => 'user',
@@ -288,16 +361,19 @@ class GeminiServiceTest extends TestCase
             ],
         ]);
 
+        // Assert
         $this->assertSame('テスト回答', $result['text']);
         $this->assertNull($result['input_tokens']);
         $this->assertNull($result['output_tokens']);
     }
 
     /**
-     * 回答の複数パーツが連結され、thought パーツが除外されることを確認する。
+     * 回答の複数パーツが連結され、
+     * thought パーツが回答から除外されることを確認する。
      */
     public function test_generate_joins_answer_parts_and_excludes_thought_parts(): void
     {
+        // Arrange
         config([
             'ai-chat.gemini.api_key' => 'test-api-key',
             'ai-chat.gemini.model' => 'gemini-3.8-flash',
@@ -322,6 +398,7 @@ class GeminiServiceTest extends TestCase
             ], 200),
         ]);
 
+        // Act
         $result = app(GeminiService::class)->generate([
             [
                 'role' => 'user',
@@ -329,6 +406,7 @@ class GeminiServiceTest extends TestCase
             ],
         ]);
 
+        // Assert
         $this->assertSame('こんにちは！', $result['text']);
     }
 }
