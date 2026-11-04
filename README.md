@@ -114,6 +114,8 @@ http://localhost:8000 にアクセスし、下記の[ログインアカウント
 ```bash
 sail artisan test                  # 全テスト実行
 sail artisan test --filter=Xxx    # クラス名・メソッド名で絞り込み
+sail artisan test --group=external-api  # 外部API関連のテストのみ実行
+sail artisan test --exclude-group=external-api  # 外部API関連のテストを除外して実行
 ```
 
 ## コード整形
@@ -234,10 +236,6 @@ Gemini連携を利用するには、Google AI Studio で Gemini API キーを取
 
 5. コマンドの実行結果に表示された Webhook 署名シークレット（`whsec_...`）を `.env` の `STRIPE_WEBHOOK_SECRET` に設定します。Stripe CLI が表示する値はローカル開発用です。本番環境などの別環境では、それぞれの Webhook 設定に対応する署名シークレットを使用してください。
 6. `.env` を変更した場合は、必要に応じて設定キャッシュをクリアします。
-
-   ```bash
-   ./vendor/bin/sail artisan config:clear
-   ```
 
 #### 決済・Webhook の動作確認
 1. Laravel アプリケーションと Stripe CLI の両方を起動しておきます。Webhook の転送中は `stripe listen` を実行しているターミナルを閉じないでください。
