@@ -10,10 +10,16 @@ use App\Exceptions\Mentoring\MeetingOutOfAvailabilityException;
 use App\Models\Certification;
 use App\Models\CoachAvailability;
 use App\Models\Enrollment;
+use App\Models\GoogleCalendarCredential;
 use App\Models\Meeting;
 use App\Models\User;
 use App\Notifications\MeetingReservedNotification;
+use App\Services\GoogleCalendarService;
 use App\UseCases\Meeting\StoreAction;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Carbon;
@@ -325,5 +331,148 @@ class StoreActionTest extends TestCase
                 return $job->notification instanceof MeetingReservedNotification;
             },
         );
+    }
+
+    /**
+     * Google Calendar への予定登録が成功した場合、
+     * 取得したイベント ID が面談に保存されることを確認する。
+     *
+     * @group external-api
+     */
+    public function test_google_calendar_event_is_created_when_meeting_is_reserved(): void
+    {
+        // Arrange
+        $context = $this->createReservationContext();
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $context['coach']->id,
+        ]);
+        $mockHandler = new MockHandler([
+            // FreeBusy API のレスポンス
+            new Response(
+                200,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'calendars' => [
+                        'primary' => [
+                            'busy' => [],
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+
+            // Events.insert API のレスポンス
+            new Response(
+                200,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'id' => 'google-calendar-event-123',
+                ], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $this->app->instance(
+            GoogleCalendarService::class,
+            new GoogleCalendarService(
+                new Client([
+                    'handler' => HandlerStack::create($mockHandler),
+                ]),
+            ),
+        );
+
+        // Act
+        $meeting = app(StoreAction::class)(
+            $context['enrollment'],
+            [
+                'scheduled_at' => $context['scheduledAt']->toDateTimeString(),
+                'topic' => 'Google Calendar連携テスト',
+            ],
+        );
+
+        // Assert
+        $this->assertDatabaseHas('meetings', [
+            'id' => $meeting->id,
+            'status' => MeetingStatus::Reserved->value,
+            'google_calendar_event_id' => 'google-calendar-event-123',
+        ]);
+
+        $this->assertSame(0, $mockHandler->count());
+    }
+
+    /**
+     * Google Calendar への予定登録に失敗しても、
+     * 面談予約自体は正常に完了することを確認する。
+     *
+     * @group external-api
+     */
+    public function test_meeting_is_reserved_even_when_google_calendar_event_creation_fails(): void
+    {
+        // Arrange
+        $context = $this->createReservationContext();
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $context['coach']->id,
+        ]);
+
+        $mockHandler = new MockHandler([
+            // FreeBusy API のレスポンス
+            new Response(
+                200,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'calendars' => [
+                        'primary' => [
+                            'busy' => [],
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+
+            // Events.insert API の失敗レスポンス
+            new Response(
+                500,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'error' => [
+                        'code' => 500,
+                        'message' => 'Internal Server Error',
+                        'errors' => [
+                            [
+                                'message' => 'Internal Server Error',
+                                'domain' => 'global',
+                                'reason' => 'backendError',
+                            ],
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $this->app->instance(
+            GoogleCalendarService::class,
+            new GoogleCalendarService(
+                new Client([
+                    'handler' => HandlerStack::create($mockHandler),
+                ]),
+            ),
+        );
+
+        // Act
+        $meeting = app(StoreAction::class)(
+            $context['enrollment'],
+            [
+                'scheduled_at' => $context['scheduledAt']->toDateTimeString(),
+                'topic' => 'Google Calendar API失敗テスト',
+            ],
+        );
+
+        // Assert
+        $this->assertDatabaseHas('meetings', [
+            'id' => $meeting->id,
+            'status' => MeetingStatus::Reserved->value,
+            'google_calendar_event_id' => null,
+        ]);
+
+        $this->assertSame(0, $mockHandler->count());
     }
 }

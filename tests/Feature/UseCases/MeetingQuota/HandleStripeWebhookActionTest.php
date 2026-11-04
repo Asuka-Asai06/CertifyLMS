@@ -441,6 +441,46 @@ class HandleStripeWebhookActionTest extends TestCase
     }
 
     /**
+     * Checkout Session ID が未設定の場合は処理しない。
+     */
+    public function test_does_nothing_when_checkout_session_id_is_null(): void
+    {
+        // Arrange
+        $payment = $this->createPayment();
+
+        $payment->update([
+            'stripe_checkout_session_id' => null,
+        ]);
+
+        $session = CheckoutSession::constructFrom([
+            'id' => 'cs_test_123',
+            'object' => 'checkout.session',
+            'metadata' => [
+                'payment_id' => $payment->id,
+            ],
+            'payment_status' => 'paid',
+            'payment_intent' => 'pi_test_123',
+        ]);
+
+        // Act
+        app(HandleStripeWebhookAction::class)(
+            'checkout.session.completed',
+            $session,
+        );
+
+        // Assert
+        $this->assertSame(
+            PaymentStatus::Pending,
+            $payment->fresh()->status,
+        );
+
+        $this->assertDatabaseMissing('meeting_quota_transactions', [
+            'related_payment_id' => $payment->id,
+            'type' => MeetingQuotaTransactionType::Purchased->value,
+        ]);
+    }
+
+    /**
      * テスト用の Payment を作成する。
      */
     private function createPayment(

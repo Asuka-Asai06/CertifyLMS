@@ -35,8 +35,8 @@ final class HandleStripeWebhookAction
             }
 
             if (
-                $payment->stripe_checkout_session_id !== null
-                && $payment->stripe_checkout_session_id !== $session->id
+                $payment->stripe_checkout_session_id === null
+                || $payment->stripe_checkout_session_id !== $session->id
             ) {
                 return;
             }

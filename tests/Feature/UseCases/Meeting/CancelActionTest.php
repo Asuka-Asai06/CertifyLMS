@@ -7,10 +7,17 @@ namespace Tests\Feature\UseCases\Meeting;
 use App\Enums\MeetingStatus;
 use App\Models\Certification;
 use App\Models\Enrollment;
+use App\Models\GoogleCalendarCredential;
 use App\Models\Meeting;
 use App\Models\User;
 use App\Notifications\MeetingCanceledNotification;
+use App\Services\GoogleCalendarService;
+use App\UseCases\Meeting\CancelAction;
 use App\UseCases\MeetingQuota\ConsumeQuotaAction;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\DB;
@@ -351,5 +358,134 @@ class CancelActionTest extends TestCase
             'meeting' => $meeting,
             'quotaTransactionTable' => $transaction->getTable(),
         ];
+    }
+
+    /**
+     * 面談キャンセル時に Google Calendar の予定削除 API が呼び出されることを確認する。
+     *
+     * @group external-api
+     */
+    public function test_google_calendar_event_is_deleted_when_meeting_is_canceled(): void
+    {
+        // Arrange
+        Notification::fake();
+
+        $data = $this->createMeeting();
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $data['coach']->id,
+        ]);
+
+        $data['meeting']->update([
+            'google_calendar_event_id' => 'google-calendar-event-123',
+        ]);
+
+        // Google Calendar のイベント削除は成功時に HTTP 204 を返す。
+        $mockHandler = new MockHandler([
+            new Response(204),
+        ]);
+
+        $this->app->instance(
+            GoogleCalendarService::class,
+            new GoogleCalendarService(
+                new Client([
+                    'handler' => HandlerStack::create($mockHandler),
+                ]),
+            ),
+        );
+
+        // Act
+        app(CancelAction::class)(
+            $data['meeting'],
+            $data['student'],
+        );
+
+        // Assert
+        $this->assertDatabaseHas('meetings', [
+            'id' => $data['meeting']->id,
+            'status' => MeetingStatus::Canceled->value,
+            'google_calendar_event_id' => 'google-calendar-event-123',
+        ]);
+
+        // モックした API レスポンスが消費されていることを確認する。
+        $this->assertSame(0, $mockHandler->count());
+    }
+
+    /**
+     * Google Calendar の予定削除 API が失敗しても、
+     * 面談キャンセルと面談回数の返却が正常に完了することを確認する。
+     *
+     * @group external-api
+     */
+    public function test_meeting_is_canceled_even_when_google_calendar_event_deletion_fails(): void
+    {
+        // Arrange
+        Notification::fake();
+
+        $data = $this->createMeeting();
+
+        GoogleCalendarCredential::factory()->create([
+            'user_id' => $data['coach']->id,
+        ]);
+
+        $data['meeting']->update([
+            'google_calendar_event_id' => 'google-calendar-event-123',
+        ]);
+
+        // Google Calendar のイベント削除 API が HTTP 500 を返す。
+        $mockHandler = new MockHandler([
+            new Response(
+                500,
+                ['Content-Type' => 'application/json'],
+                json_encode([
+                    'error' => [
+                        'code' => 500,
+                        'message' => 'Internal Server Error',
+                        'errors' => [
+                            [
+                                'message' => 'Internal Server Error',
+                                'domain' => 'global',
+                                'reason' => 'backendError',
+                            ],
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $this->app->instance(
+            GoogleCalendarService::class,
+            new GoogleCalendarService(
+                new Client([
+                    'handler' => HandlerStack::create($mockHandler),
+                ]),
+            ),
+        );
+
+        $beforeTransactionCount = DB::table(
+            $data['quotaTransactionTable'],
+        )->count();
+
+        // Act
+        app(CancelAction::class)(
+            $data['meeting'],
+            $data['student'],
+        );
+
+        // Assert
+        $this->assertDatabaseHas('meetings', [
+            'id' => $data['meeting']->id,
+            'status' => MeetingStatus::Canceled->value,
+            'google_calendar_event_id' => 'google-calendar-event-123',
+        ]);
+
+        // 面談回数の返却トランザクションが追加されていることを確認する。
+        $this->assertSame(
+            $beforeTransactionCount + 1,
+            DB::table($data['quotaTransactionTable'])->count(),
+        );
+
+        // API の失敗レスポンスが消費されていることを確認する。
+        $this->assertSame(0, $mockHandler->count());
     }
 }

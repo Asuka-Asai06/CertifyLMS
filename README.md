@@ -176,6 +176,41 @@ sail artisan queue:retry all
 
 Google Calendar 連携を利用するには、Google Cloud 側で必要な Calendar API を有効にし、OAuth 同意画面と OAuth クライアントを設定する必要があります。開発環境では、使用する Google アカウントが OAuth アプリのテストユーザーとして登録されていることも確認してください。
 
+### Gemini 連携（AIチャット）
+
+- `AI_CHAT_ENABLED` — AIチャット機能の有効・無効を設定します。true にするとAIチャットを利用できます。
+- `GEMINI_API_KEY` — Gemini API の認証に使用します。Google AI Studio で API キーを取得して設定してください。
+- `GEMINI_MODEL` — 使用するGeminiのモデルを設定します。デフォルトではgemini-3.8-flashを使用します。
+- `AI_CHAT_HISTORY_LIMIT` — Gemini API に送信する会話履歴の最大件数を設定します。デフォルトでは直近20件を対象とします。
+- `AI_CHAT_DAILY_LIMIT` — 受講生1人あたりの1日のメッセージ送信上限を設定します。デフォルトでは1日50件です。
+
+Gemini連携を利用するには、Google AI Studio で Gemini API キーを取得し、`.env` に設定する必要があります。
+
+#### 初期設定
+
+1. [Google AI Studio](https://aistudio.google.com/) にアクセスし、Google アカウントでログインします。
+2. API キーの管理画面から Gemini API キーを作成します。
+3. 取得した API キーを `.env` の `GEMINI_API_KEY` に設定します。
+4. 必要に応じて `.env` の その他の環境変数を変更します。
+5. `.env` を変更した場合は、必要に応じて設定キャッシュをクリアします。
+
+   ```bash
+   ./vendor/bin/sail artisan config:clear
+   ```
+
+#### AIチャットの動作確認
+1. Laravel アプリケーションを起動します。
+2. 受講中の受講生アカウントでログインします。
+3. AIチャットのウィジェット、または全画面のAIチャットを開きます。
+4. メッセージを送信し、Geminiから回答が返ってくることを確認します。
+5. 会話履歴が保存され、ページを移動した後も会話一覧から過去の会話を確認できることを確認します。
+
+#### 注意事項
+- AIチャットでは、利用している画面や学習状況に応じて、教材や受講登録の情報をGemini APIに送信します。
+- Gemini API の利用には、Google AI Studio 側の利用制限や料金体系が適用されます。無料枠ではリクエスト数や利用量に制限があり、混雑状況などによってタイムアウトやエラーが発生する場合があります。
+- Gemini API のモデルはアプリケーション側の設定に従います。Gemini 2.5 Flashの新規登録が終了している為、Gemini 3.8 Flash をデフォルトとして設定しています。
+- Gemini API のエラーが発生した場合、AIチャットにエラーが表示されることがあります。時間をおいて再度送信してください。
+
 ### Stripe 連携（追加面談購入）
 - `STRIPE_SECRET` — Stripe API の認証に使用します。Stripe ダッシュボードで開発者用のテスト用シークレットキー（`sk_test_...`）を取得して設定してください。
 - `STRIPE_WEBHOOK_SECRET` — Stripe Webhook の署名検証に使用します。ローカル開発環境では Stripe CLI で `stripe listen` を実行し、表示された署名シークレット（`whsec_...`）を設定してください。
